@@ -34,12 +34,16 @@ namespace CStoBP
 
         private void TextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
+
             if(TB_CloudscriptFunction != null && TB_CloudscriptFunction.Text.Length > 12 && TB_CloudscriptFunction.Text.Substring(0, 8) == "handlers")
             {
                 TB_FunctionArguments.Text = "";
-                foreach (string s in GetArgumentsFromCloudscriptFunction(TB_CloudscriptFunction.Text))
+                string[] args = GetArgumentsFromCloudscriptFunction(TB_CloudscriptFunction.Text);
+                string funcName = GetFunctionNameFromCloudscriptFunction(TB_CloudscriptFunction.Text);
+                TB_FunctionName.Text = funcName;
+                foreach (string s in args)
                 {
-                    if(s == GetArgumentsFromCloudscriptFunction(TB_CloudscriptFunction.Text)[0])
+                    if(s == args[0])
                     {
                         TB_FunctionArguments.Text = s;
                     }
@@ -48,7 +52,6 @@ namespace CStoBP
                         TB_FunctionArguments.Text = TB_FunctionArguments.Text + "\n" + s;
                     }
                 }
-                TB_FunctionName.Text = GetFunctionNameFromCloudscriptFunction(TB_CloudscriptFunction.Text);
             }
 
         }
@@ -62,7 +65,7 @@ namespace CStoBP
             public string NodePosX = "11568";
             public string NodePosY = "11152";
             public string ErrorType = "4";
-            public string NodeGuid = GenerateRandomHexNumber(32);
+            public string NodeGuid = GenerateRandomHexNumber();
             public GraphPin[] Pins = { };
             public GraphPin[] UserDefinedPins = { };
             public GraphNode()
@@ -96,34 +99,7 @@ namespace CStoBP
                 pins[UserDefinedPins.Length]._ParentNodeRef = this;
                 UserDefinedPins = pins;
             }
-            public void AddPinExec()
-            {
-                AddPin(new GraphPin(this));
-                Pins[Pins.Length].OpenGraphPinText();
-                Pins[Pins.Length].PinId(GenerateRandomHexNumber(32));
-                Pins[Pins.Length].PinName("execute");
-                Pins[Pins.Length].PinToolTip("\\nExec");
-                Pins[Pins.Length].PinCategory("exec");
-                Pins[Pins.Length].PinSubCategory("");
-                Pins[Pins.Length].PinSubCategoryObject("None");
-                Pins[Pins.Length].PinSubCategoryMemberReference("()");
-                Pins[Pins.Length].PinValueType("()");
-                Pins[Pins.Length].ContainerType(EPinContainerType.None);
-                Pins[Pins.Length].bIsReference(false);
-                Pins[Pins.Length].bIsConst(false);
-                Pins[Pins.Length].bIsWeakPointer(false);
-                Pins[Pins.Length].bIsUObjectWrapper(false);
-                Pins[Pins.Length].bSerializeAsSinglePrecisionFloat(false);
-                Pins[Pins.Length].LinkedTo("()");
-                Pins[Pins.Length].PersistentGuid("00000000000000000000000000000000");
-                Pins[Pins.Length].bHidden(false);
-                Pins[Pins.Length].bNotConnectable(false);
-                Pins[Pins.Length].bDefaultValueIsReadOnly(false);
-                Pins[Pins.Length].bDefaultValueIsIgnored(false);
-                Pins[Pins.Length].bAdvancedView(false);
-                Pins[Pins.Length].bOrphanedPin(false);
-                Pins[Pins.Length].CloseGraphPinText();
-            }
+
             public virtual string GetBeginObjectClassString()
             {
 
@@ -233,7 +209,7 @@ namespace CStoBP
                 CustomFunctionName = "CS_" + customFunctionName;
                 AddPin(new GraphPin(this));
                 Pins[0].OpenGraphPinText();
-                Pins[0].PinId(GenerateRandomHexNumber(32));
+                Pins[0].PinId(GenerateRandomHexNumber());
                 Pins[0].PinName("OutputDelegate");
                 Pins[0].Direction(EEdGraphPinDirection.EGPD_Output);
                 Pins[0].PinCategory("delegate");
@@ -241,7 +217,7 @@ namespace CStoBP
                 Pins[0].PinSubCategoryObject("None");
                 Pins[0].PinSubCategoryMemberReference("(MemberParent=/Script/Engine.BlueprintGeneratedClass'\"/Game/_D/BPs/GameInstanceBP.GameInstanceBP_C\"'");
                 Pins[0].MemberName(CustomFunctionName);
-                Pins[0].MemberGuid(GenerateRandomHexNumber(32));
+                Pins[0].MemberGuid(GenerateRandomHexNumber());
                 Pins[0].PinValueType("()");
                 Pins[0].ContainerType(EPinContainerType.None);
                 Pins[0].bIsReference(false);
@@ -259,7 +235,7 @@ namespace CStoBP
                 Pins[0].CloseGraphPinText();
                 AddPin(new GraphPin(this));
                 Pins[1].OpenGraphPinText();
-                Pins[1].PinId(GenerateRandomHexNumber(32));
+                Pins[1].PinId(GenerateRandomHexNumber());
                 Pins[1].PinName("then");
                 Pins[1].PinToolTip("\\nExec");
                 Pins[1].Direction(EEdGraphPinDirection.EGPD_Output);
@@ -286,7 +262,7 @@ namespace CStoBP
                 {
                     AddPin(new GraphPin(this));
                     Pins[Pins.Length - 1].OpenGraphPinText();
-                    Pins[Pins.Length - 1].PinId(GenerateRandomHexNumber(32));
+                    Pins[Pins.Length - 1].PinId(GenerateRandomHexNumber());
                     Pins[Pins.Length - 1].PinName(s);
                     Pins[Pins.Length - 1].Direction(EEdGraphPinDirection.EGPD_Output);
                     Pins[Pins.Length - 1].PinCategory("string");
@@ -343,7 +319,7 @@ namespace CStoBP
                 NodePosY = "11168";
                 AddPin(new GraphPin(this));
                 Pins[0].OpenGraphPinText();
-                Pins[0].PinId(GenerateRandomHexNumber(32));
+                Pins[0].PinId(GenerateRandomHexNumber());
                 Pins[0].PinName("execute");
                 Pins[0].PinToolTip("\\nExec");
                 Pins[0].PinCategory("exec");
@@ -368,7 +344,7 @@ namespace CStoBP
                 Pins[0].CloseGraphPinText();
                 AddPin(new GraphPin(this));
                 Pins[1].OpenGraphPinText();
-                Pins[1].PinId(GenerateRandomHexNumber(32));
+                Pins[1].PinId(GenerateRandomHexNumber());
                 Pins[1].PinName("then");
                 Pins[1].PinToolTip("\\nExec");
                 Pins[1].Direction(EEdGraphPinDirection.EGPD_Output);
@@ -393,7 +369,7 @@ namespace CStoBP
                 Pins[1].CloseGraphPinText();
                 AddPin(new GraphPin(this));
                 Pins[2].OpenGraphPinText();
-                Pins[2].PinId(GenerateRandomHexNumber(32));
+                Pins[2].PinId(GenerateRandomHexNumber());
                 Pins[2].PinName("self");
                 Pins[2].PinFriendlyName("NSLOCTEXT(\"K2Node\", \"Target\", \"Target\")");
                 Pins[2].PinToolTip("Target\\nKismet System Library Object Reference");
@@ -419,7 +395,7 @@ namespace CStoBP
                 Pins[2].CloseGraphPinText();
                 AddPin(new GraphPin(this));
                 Pins[3].OpenGraphPinText();
-                Pins[3].PinId(GenerateRandomHexNumber(32));
+                Pins[3].PinId(GenerateRandomHexNumber());
                 Pins[3].PinName("WorldContextObject");
                 Pins[3].PinToolTip("World Context Object\\nObject Reference");
                 Pins[3].PinCategory("object");
@@ -443,7 +419,7 @@ namespace CStoBP
                 Pins[3].CloseGraphPinText();
                 AddPin(new GraphPin(this));
                 Pins[4].OpenGraphPinText();
-                Pins[4].PinId(GenerateRandomHexNumber(32));
+                Pins[4].PinId(GenerateRandomHexNumber());
                 Pins[4].PinName("InString");
                 Pins[4].PinToolTip("In String\\nString\\n\\nThe string to log out");
                 Pins[4].PinCategory("string");
@@ -469,7 +445,7 @@ namespace CStoBP
                 Pins[4].CloseGraphPinText();
                 AddPin(new GraphPin(this));
                 Pins[5].OpenGraphPinText();
-                Pins[5].PinId(GenerateRandomHexNumber(32));
+                Pins[5].PinId(GenerateRandomHexNumber());
                 Pins[5].PinName("bPrintToScreen");
                 Pins[5].PinToolTip("Print to Screen\\nBoolean\\n\\nWhether or not to print the output to the screen");
                 Pins[5].PinCategory("bool");
@@ -495,7 +471,7 @@ namespace CStoBP
                 Pins[5].CloseGraphPinText();
                 AddPin(new GraphPin(this));
                 Pins[6].OpenGraphPinText();
-                Pins[6].PinId(GenerateRandomHexNumber(32));
+                Pins[6].PinId(GenerateRandomHexNumber());
                 Pins[6].PinName("bPrintToLog");
                 Pins[6].PinToolTip("Print to Log\\nBoolean\\n\\nWhether or not to print the output to the log");
                 Pins[6].PinCategory("bool");
@@ -521,7 +497,7 @@ namespace CStoBP
                 Pins[6].CloseGraphPinText();
                 AddPin(new GraphPin(this));
                 Pins[7].OpenGraphPinText();
-                Pins[7].PinId(GenerateRandomHexNumber(32));
+                Pins[7].PinId(GenerateRandomHexNumber());
                 Pins[7].PinName("TextColor");
                 Pins[7].PinToolTip("Text Color\\nLinear Color Structure\\n\\nThe color of the text to display");
                 Pins[7].PinCategory("struct");
@@ -547,7 +523,7 @@ namespace CStoBP
                 Pins[7].CloseGraphPinText();
                 AddPin(new GraphPin(this));
                 Pins[8].OpenGraphPinText();
-                Pins[8].PinId(GenerateRandomHexNumber(32));
+                Pins[8].PinId(GenerateRandomHexNumber());
                 Pins[8].PinName("Duration");
                 Pins[8].PinToolTip("Duration\\nFloat (single-precision)\\n\\nThe display duration (if Print to Screen is True). Using negative number will result in loading the duration time from the config.");
                 Pins[8].PinCategory("real");
@@ -573,7 +549,7 @@ namespace CStoBP
                 Pins[8].CloseGraphPinText();
                 AddPin(new GraphPin(this));
                 Pins[9].OpenGraphPinText();
-                Pins[9].PinId(GenerateRandomHexNumber(32));
+                Pins[9].PinId(GenerateRandomHexNumber());
                 Pins[9].PinName("Key");
                 Pins[9].PinToolTip("Key\\nName\\n\\nIf a non-empty key is provided, the message will replace any existing on-screen messages with the same key.");
                 Pins[9].PinCategory("name");
@@ -603,7 +579,7 @@ namespace CStoBP
         {
             //example values in comments
             public GraphNode _ParentNodeRef;
-            public string _PinId = GenerateRandomHexNumber(32);
+            public string _PinId = GenerateRandomHexNumber();
             public string _PinName = "";
             public string _PinFriendlyName = "";
             public string _PinToolTip = "";
@@ -922,37 +898,17 @@ namespace CStoBP
         #endregion
 
         #region <Helpers>
-        static string[] GetUniqueStrings(string[] inputArray)
-        {
-            List<string> uniqueStrings = new List<string>();
-            foreach (string str in inputArray)
-            {
-                if (!uniqueStrings.Contains(str))
-                {
-                    uniqueStrings.Add(str);
-                }
-            }
-            return uniqueStrings.ToArray();
-        }
-        static string ConsoleReadLinesTillEnd(string previousLines)
-        {
-            previousLines = previousLines + Console.ReadLine();
-            if (previousLines.EndsWith("END") != true)
-            {
-                ConsoleReadLinesTillEnd(previousLines);
-            }
-            previousLines = previousLines.Substring(0, previousLines.Length - 3);
-            return previousLines;
-        }
-        public static string GenerateRandomHexNumber(int digits = 32)
+
+        public static string GenerateRandomHexNumber()
         {
             Random random = new Random();
-            byte[] buffer = new byte[digits / 2];
+            byte[] buffer = new byte[32 / 2];
             random.NextBytes(buffer);
             string result = String.Concat(buffer.Select(x => x.ToString("X2")).ToArray());
-            if (digits % 2 == 0)
+            if (32 % 2 == 0)
+            {
                 return result;
-            return result + random.Next(16).ToString("X");
+            }
         }
         static string Wrap(string str)
         {

@@ -5,15 +5,15 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:CStoBP"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
-    <Canvas Height="434" VerticalAlignment="Center">
+        Title="MainWindow" Height="1128" Width="2020">
+    <Canvas Height="1080" Margin="10,0,10,0">
         <Canvas.Background>
             <LinearGradientBrush EndPoint="0.5,1" StartPoint="0.5,0">
                 <GradientStop Color="Black"/>
                 <GradientStop Color="#FF0C0C0C" Offset="1"/>
             </LinearGradientBrush>
         </Canvas.Background>
-        <TextBox x:Name="TB_CloudscriptFunction" TextWrapping="Wrap" Width="780" Height="145" TextChanged="TextBox_TextChanged" FontFamily="Microsoft Tai Le" Foreground="White" VerticalAlignment="Center" HorizontalAlignment="Left" FontSize="15" Canvas.Top="20" Canvas.Left="10" AcceptsReturn="True" AutomationProperties.HelpText="Enter Javascript Playfab Cloudscript Here" Text="Enter Javascript Playfab Cloudscript here..." >
+        <TextBox x:Name="TB_CloudscriptFunction" TextWrapping="Wrap" Width="1900" Height="846" TextChanged="TextBox_TextChanged" FontFamily="Microsoft Tai Le" Foreground="White" FontSize="15" Canvas.Top="30" Canvas.Left="50" AcceptsReturn="True" AutomationProperties.HelpText="Enter Javascript Playfab Cloudscript Here" Text="handlers.InventoryItemChangeInventoryIndex = function (args, context){&#xD;&#xA;     //Arguments Valid?&#xD;&#xA;     if (args.itemInstanceId == null || args.inventoryIndexToMoveTo == null)&#xD;&#xA;     {&#xD;&#xA;         return {messageValue: &quot;Wrong Arguments Passed In!&quot;};&#xD;&#xA;     }&#xD;&#xA; &#xD;&#xA;     //Gets the User inventory&#xD;&#xA;     var GetUserInventoryResult = server.GetUserInventory(&#xD;&#xA;         {&#xD;&#xA;             PlayFabId: currentPlayerId&#xD;&#xA;         }&#xD;&#xA;     );&#xD;&#xA; &#xD;&#xA;     //Check if slot is free&#xD;&#xA;     for (var i = 0; i &lt; GetUserInventoryResult.Inventory.length; i++)&#xD;&#xA;     {&#xD;&#xA;         if (args.inventoryIndex == GetUserInventoryResult.Inventory[i].CustomData.inventoryIndex)&#xD;&#xA;         {&#xD;&#xA;             return {messageValue: &quot;Failed: Inv Slot Occupied!&quot;};&#xD;&#xA;         }&#xD;&#xA;     }&#xD;&#xA; &#xD;&#xA;     //Changing the index&#xD;&#xA;     var UpdateUserInventoryItemDataResult = server.UpdateUserInventoryItemCustomData(&#xD;&#xA;         {&#xD;&#xA;             ItemInstanceId: args.itemInstanceId,&#xD;&#xA;             PlayFabId: currentPlayerId,&#xD;&#xA;             Data:&#xD;&#xA;             {&#xD;&#xA;                 &quot;inventoryIndex&quot;: args.inventoryIndexToMoveTo&#xD;&#xA;             }&#xD;&#xA;         }&#xD;&#xA;     );&#xD;&#xA; &#xD;&#xA;     return {messageValue: &quot;Success&quot;};&#xD;&#xA; }" HorizontalAlignment="Left" VerticalAlignment="Top" >
             <TextBox.Background>
                 <LinearGradientBrush EndPoint="0.5,1" StartPoint="0.5,0">
                     <GradientStop Color="Black"/>
@@ -21,8 +21,8 @@
                 </LinearGradientBrush>
             </TextBox.Background>
         </TextBox>
-        <Button Content="Convert to Blueprint" Height="23" Width="236" Click="Button_Click" Canvas.Top="205" VerticalAlignment="Center" HorizontalAlignment="Left" Canvas.Left="257" Background="Black" Foreground="#FF89A6AF"/>
-        <TextBlock x:Name="TB_FunctionArguments" Canvas.Left="10" TextWrapping="Wrap" Text="Function Arguments" Canvas.Top="174" Height="168" Width="237" Foreground="#FFEC5CCC" HorizontalAlignment="Center" VerticalAlignment="Top">
+        <Button Content="Javascript Cloudcript&#xD;&#xA;To&#xD;&#xA;Unreal Engine&#xD;&#xA;Blueprint" Height="160" Width="236" Click="Button_Click" Canvas.Top="892" VerticalAlignment="Top" HorizontalAlignment="Center" Canvas.Left="963" Background="Black" Foreground="#FF89A6AF" FontSize="20" HorizontalContentAlignment="Center" VerticalContentAlignment="Center"/>
+        <TextBlock x:Name="TB_FunctionArguments" Canvas.Left="50" TextWrapping="Wrap" Text="Function Arguments" Canvas.Top="888" Height="168" Width="237" Foreground="#FFEC5CCC" HorizontalAlignment="Left" VerticalAlignment="Top" FontSize="16">
             <TextBlock.Background>
                 <LinearGradientBrush EndPoint="0.5,1" StartPoint="0.5,0">
                     <GradientStop Color="Black" Offset="1"/>
@@ -30,7 +30,7 @@
                 </LinearGradientBrush>
             </TextBlock.Background>
         </TextBlock>
-        <TextBlock x:Name="TB_FunctionName" Canvas.Left="257" TextWrapping="Wrap" Text="Function Name" Canvas.Top="174" Height="23" Width="236" Foreground="#FFF55151" HorizontalAlignment="Left" VerticalAlignment="Top">
+        <TextBlock x:Name="TB_FunctionName" Canvas.Left="310" TextWrapping="Wrap" Text="Function Name" Canvas.Top="895" Height="56" Width="550" Foreground="#FFF55151" HorizontalAlignment="Left" VerticalAlignment="Center" FontSize="32">
             <TextBlock.Background>
                 <LinearGradientBrush EndPoint="0.5,1" StartPoint="0.5,0">
                     <GradientStop Color="Black" Offset="1"/>

@@ -1,0 +1,42 @@
+﻿<Window x:Class="CStoBP.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:CStoBP"
+        mc:Ignorable="d"
+        Title="MainWindow" Height="450" Width="800">
+    <Canvas Height="434" VerticalAlignment="Center">
+        <Canvas.Background>
+            <LinearGradientBrush EndPoint="0.5,1" StartPoint="0.5,0">
+                <GradientStop Color="Black"/>
+                <GradientStop Color="#FF0C0C0C" Offset="1"/>
+            </LinearGradientBrush>
+        </Canvas.Background>
+        <TextBox x:Name="TB_CloudscriptFunction" TextWrapping="Wrap" Width="780" Height="145" TextChanged="TextBox_TextChanged" FontFamily="Microsoft Tai Le" Foreground="White" VerticalAlignment="Center" HorizontalAlignment="Left" FontSize="15" Canvas.Top="20" Canvas.Left="10" AcceptsReturn="True" AutomationProperties.HelpText="Enter Javascript Playfab Cloudscript Here" Text="Enter Javascript Playfab Cloudscript here..." >
+            <TextBox.Background>
+                <LinearGradientBrush EndPoint="0.5,1" StartPoint="0.5,0">
+                    <GradientStop Color="Black"/>
+                    <GradientStop Color="#FF171717" Offset="1"/>
+                </LinearGradientBrush>
+            </TextBox.Background>
+        </TextBox>
+        <Button Content="Convert to Blueprint" Height="23" Width="236" Click="Button_Click" Canvas.Top="205" VerticalAlignment="Center" HorizontalAlignment="Left" Canvas.Left="257" Background="Black" Foreground="#FF89A6AF"/>
+        <TextBlock x:Name="TB_FunctionArguments" Canvas.Left="10" TextWrapping="Wrap" Text="Function Arguments" Canvas.Top="174" Height="168" Width="237" Foreground="#FFEC5CCC" HorizontalAlignment="Center" VerticalAlignment="Top">
+            <TextBlock.Background>
+                <LinearGradientBrush EndPoint="0.5,1" StartPoint="0.5,0">
+                    <GradientStop Color="Black" Offset="1"/>
+                    <GradientStop Color="#FF151515" Offset="0"/>
+                </LinearGradientBrush>
+            </TextBlock.Background>
+        </TextBlock>
+        <TextBlock x:Name="TB_FunctionName" Canvas.Left="257" TextWrapping="Wrap" Text="Function Name" Canvas.Top="174" Height="23" Width="236" Foreground="#FFF55151" HorizontalAlignment="Left" VerticalAlignment="Top">
+            <TextBlock.Background>
+                <LinearGradientBrush EndPoint="0.5,1" StartPoint="0.5,0">
+                    <GradientStop Color="Black" Offset="1"/>
+                    <GradientStop Color="#FF151515" Offset="0"/>
+                </LinearGradientBrush>
+            </TextBlock.Background>
+        </TextBlock>
+    </Canvas>
+</Window>

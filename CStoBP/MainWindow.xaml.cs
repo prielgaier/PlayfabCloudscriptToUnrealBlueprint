@@ -141,7 +141,7 @@ namespace CStoBP
                            "   " + "ErrorType=" + ErrorType + "\n" +
                            "   " + "NodeGuid=" + NodeGuid + "\n" +
                            "   " + myPins + "\n" +
-                           "   " + myUserDefinedPins + "\n" +
+                           "   " + myUserDefinedPins + " \n" +
                            "End Object";
                     }
                     if (UserDefinedPins.Length <= 0)

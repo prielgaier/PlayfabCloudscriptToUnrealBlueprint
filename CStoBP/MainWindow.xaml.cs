@@ -28,7 +28,11 @@ namespace CStoBP
         private void Button_Click(object sender, RoutedEventArgs e)
         {
             GraphNodeCustomEvent customEventNode = new GraphNodeCustomEvent(GetFunctionNameFromCloudscriptFunction(TB_CloudscriptFunction.Text), GetArgumentsFromCloudscriptFunction(TB_CloudscriptFunction.Text));
-            GraphNode printStringNode = new GraphNodePrintString(customEventNode);
+            GraphNodePrintString printStringNode = new GraphNodePrintString(customEventNode);
+            foreach(string argString in GetArgumentsFromCloudscriptFunction(TB_CloudscriptFunction.Text))
+            {
+
+            }
             Clipboard.SetText(customEventNode.GetBeginObjectClassString() + "\n" + printStringNode.GetBeginObjectClassString());
         }
 
@@ -291,6 +295,17 @@ namespace CStoBP
                     UserDefinedPins[UserDefinedPins.Length - 1].DesiredPinDirection(EEdGraphPinDirection.EGPD_Output);
                 }
             }
+            public string FindParameterPinIdByArgumentName(string argumentName)
+            {
+                foreach (GraphPin p in Pins)
+                {
+                    if (p._PinName == argumentName)
+                    {
+                        return p._PinId;
+                    }
+                }
+                return "";
+            }
         }
         class GraphNodePrintString : GraphNodeKismetFunction
         {
@@ -307,7 +322,6 @@ namespace CStoBP
                    "   " + "EnabledState = DevelopmentOnly" + "\n" +
                    "   " + "NodeGuid=" + NodeGuid + "\n" +
                    "   " + myPins + "\n" +
-                   "   " + myUserDefinedPins + "\n" +
                    "End Object";
             }
             public GraphNodePrintString(GraphNode nodeBefore)
@@ -869,8 +883,23 @@ namespace CStoBP
                     argsWords.Add(words[i].Substring(5));
                 }
             }
-
-            return argsWords.ToArray();
+            List<string> uniqueArgs = new List<string>();
+            foreach (string word in argsWords)
+            {
+                bool isUnique = true;
+                foreach (string arg in uniqueArgs) 
+                {
+                    if(arg == word)
+                    {
+                        isUnique = false;
+                    }
+                }
+                if(isUnique)
+                {
+                    uniqueArgs.Add(word);
+                }
+            }
+            return uniqueArgs.ToArray();
         }
         static string GetFunctionNameFromCloudscriptFunction(string input)
         {

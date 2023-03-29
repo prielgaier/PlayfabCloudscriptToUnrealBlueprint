@@ -28,12 +28,35 @@ namespace CStoBP
 
         private void Button_Click(object sender, RoutedEventArgs e)
         {
-            GraphNodeCustomEvent customEventNode = new GraphNodeCustomEvent(GetFunctionNameFromCloudscriptFunction(TB_CloudscriptFunction.Text), GetArgumentsFromCloudscriptFunction(TB_CloudscriptFunction.Text));
+            string[] functionArgs = GetArgumentsFromCloudscriptFunction(TB_CloudscriptFunction.Text);
+            string functionName = GetFunctionNameFromCloudscriptFunction(TB_CloudscriptFunction.Text);
+
+            GraphNodeCustomEvent customEventNode = new GraphNodeCustomEvent(functionName, functionArgs);
             GraphNodePrintString printStringNode = new GraphNodePrintString(customEventNode);
             GraphNodeConstructJsonObject graphNodeConstructJsonObject = new GraphNodeConstructJsonObject();
-            GraphNodeSetJsonVariable graphNodeSetJsonVariable = new GraphNodeSetJsonVariable(printStringNode, graphNodeConstructJsonObject, GetFunctionNameFromCloudscriptFunction(TB_CloudscriptFunction.Text));
+            GraphNodeSetJsonVariable graphNodeSetJsonVariable = new GraphNodeSetJsonVariable(printStringNode, graphNodeConstructJsonObject, functionName);
+            
+            //a list of GraphNodeSetStringFieldInJson
+            List<GraphNodeSetStringFieldInJson> graphNodesSetStringFieldInJsonList = new List<GraphNodeSetStringFieldInJson>();
+            if (functionArgs.Length > 0)
+            {
+                //create the first graphNodeSetStringFieldInJsonList and add to graphNodesSetStringFieldInJsonList
+                graphNodesSetStringFieldInJsonList.Add(new GraphNodeSetStringFieldInJson(graphNodeSetJsonVariable.Pins[1], graphNodeSetJsonVariable.Pins[3], customEventNode.Pins[2], functionArgs[0], 0));
+            }
+            for(int i = 1;i < functionArgs.Length;i++) 
+            {
+                graphNodesSetStringFieldInJsonList.Add(new GraphNodeSetStringFieldInJson(graphNodesSetStringFieldInJsonList[i-1].Pins[1], graphNodeSetJsonVariable.Pins[3], customEventNode.Pins[2+i], functionArgs[i], i));
+            }
 
-            Clipboard.SetText(customEventNode.GetBeginObjectClassString() + "\n" + printStringNode.GetBeginObjectClassString() + "\n" + graphNodeConstructJsonObject.GetBeginObjectClassString() + "\n" + graphNodeSetJsonVariable.GetBeginObjectClassString());
+            string setStringFieldsNodes = "";
+
+            foreach(GraphNodeSetStringFieldInJson setStringFieldinJsonNode in graphNodesSetStringFieldInJsonList)
+            {
+                setStringFieldsNodes = setStringFieldsNodes + setStringFieldinJsonNode.GetBeginObjectClassString() + "\n";
+            }
+
+            Clipboard.SetText(customEventNode.GetBeginObjectClassString() + "\n" + printStringNode.GetBeginObjectClassString() + "\n" + graphNodeConstructJsonObject.GetBeginObjectClassString() + "\n" + graphNodeSetJsonVariable.GetBeginObjectClassString() + "\n" + setStringFieldsNodes);
+            
             //show copied to clipboard
             BTN_Convert.Content = "Copied to clipboard!";
             //delay 2 seconds
@@ -242,8 +265,8 @@ namespace CStoBP
             {
                 Class = "/Script/BlueprintGraph.K2Node_CustomEvent";
                 Name = "K2Node_CustomEvent_54";
-                NodePosX = "11568";
-                NodePosY = "11168";
+                NodePosX = "64";
+                NodePosY = "272";
                 CustomFunctionName = "CS_" + customFunctionName;
                 AddPin(new GraphPinDelegateHandle(this));
                 AddPin(new GraphPinThen(this));
@@ -262,8 +285,8 @@ namespace CStoBP
                 Class = "/Script/BlueprintGraph.K2Node_CallFunction";
                 FunctionReference = "(MemberParent=/Script/CoreUObject.Class'\"/Script/Engine.KismetSystemLibrary\"',MemberName=\"PrintString\")";
                 Name = "K2Node_CallFunction_21";
-                NodePosX = "11888";
-                NodePosY = "11168";
+                NodePosX = "64";
+                NodePosY = "96";
                 AddPin(new GraphPin(this));
                 Pins[0].OpenGraphPinText();
                 Pins[0].PinId(GenerateRandomHexNumber());
@@ -545,8 +568,8 @@ namespace CStoBP
                 Class = "/Script/BlueprintGraph.K2Node_CallFunction";
                 Name = "K2Node_CallFunction_183";
                 FunctionReference = "(MemberParent=/Script/CoreUObject.Class'\"/Script/PlayFab.PlayFabJsonObject\"',MemberName=\"ConstructJsonObject\")";
-                NodePosX = "12288";
-                NodePosY = "11552";
+                NodePosX = "608";
+                NodePosY = "32";
                 AddPin(new GraphPinSelfConstructedJsonObject(this));
                 AddPin(new GraphPinWorldContextObject(this));
                 AddPin(new GraphPinConstructedJsonObjectOut(this));
@@ -572,8 +595,8 @@ namespace CStoBP
                 Class = "/Script/BlueprintGraph.K2Node_VariableSet";
                 Name = "K2Node_VariableSet_19";
                 VariableReference = "(MemberName=\"CS_" + csFunctionName + "Params" + "\",MemberGuid=" + GenerateRandomHexNumber() +",bSelfContext=True)";
-                NodePosX = "12288";
-                NodePosY = "11168";
+                NodePosX = "528";
+                NodePosY = "112";
                 AddPin(new GraphPinExec(this, previousNode.Pins[1]));
                 AddPin(new GraphPinThen(this));
                 AddPin(new GraphPinJsonIn(this, constructNode.Pins[2], "CS_" + csFunctionName + "Params", "", ""));
@@ -605,18 +628,18 @@ namespace CStoBP
         }
         class GraphNodeSetStringFieldInJson : GraphNodeKismetFunction
         {
-            public GraphNodeSetStringFieldInJson(GraphNode jsonObjectNode, GraphPin customEventStringPinParameter, string stringFieldName)
+            public GraphNodeSetStringFieldInJson(GraphPin linkToExec, GraphPin linkToJsonObjectInput, GraphPin linkToStringValueInput, string stringFieldName, int indexForSpaceBetweenNodes)
             {
                 Class = "/Script/BlueprintGraph.K2Node_CallFunction";
-                Name = "K2Node_CallFunction_193";
+                Name = "K2Node_CallFunction_19" + indexForSpaceBetweenNodes;
                 FunctionReference = "(MemberParent=/Script/CoreUObject.Class'\"/Script/PlayFab.PlayFabJsonObject\"',MemberName=\"SetStringField\")";
-                NodePosX = "12288";
-                NodePosY = "11168";
-                AddPin(new GraphPinExec(this, jsonObjectNode.Pins[1]));
+                NodePosX = "1008";
+                NodePosY = (80 + 192 * indexForSpaceBetweenNodes).ToString();
+                AddPin(new GraphPinExec(this, linkToExec));
                 AddPin(new GraphPinThen(this));
-                AddPin(new GraphPinJsonIn(this, jsonObjectNode.Pins[3], "self", "NSLOCTEXT(\"K2Node\", \"Target\", \"Target\")", "Target\\nPlay Fab Json Object Object Reference"));
+                AddPin(new GraphPinJsonIn(this, linkToJsonObjectInput, "self", "NSLOCTEXT(\"K2Node\", \"Target\", \"Target\")", "Target\\nPlay Fab Json Object Object Reference"));
                 AddPin(new GraphPinStringFieldName(this, stringFieldName));
-                AddPin(new GraphPinStringIn(this, stringFieldName, "String Value\\nString", customEventStringPinParameter));
+                AddPin(new GraphPinStringIn(this, stringFieldName, "String Value\\nString", linkToStringValueInput));
             }
             public override string GetBeginObjectClassString()
             {
@@ -1116,12 +1139,12 @@ namespace CStoBP
         }
         class GraphPinStringIn : GraphPin
         {
-            public GraphPinStringIn(GraphNode parentNodeRef, string inputPinName, string pinToolTip, GraphPin customEventNodePin) : base(parentNodeRef)
+            public GraphPinStringIn(GraphNode parentNodeRef, string inputPinName, string pinToolTip, GraphPin parameterFromCustomEventNode) : base(parentNodeRef)
             {
                 _ParentNodeRef = parentNodeRef;
                 OpenGraphPinText();
                 PinId(GenerateRandomHexNumber());
-                PinName(inputPinName);
+                PinName("StringValue");
                 if (pinToolTip.Length > 0)
                 {
                     PinToolTip(pinToolTip);
@@ -1137,7 +1160,7 @@ namespace CStoBP
                 bIsWeakPointer(false);
                 bIsUObjectWrapper(false);
                 bSerializeAsSinglePrecisionFloat(false);
-                LinkToPin(customEventNodePin);
+                LinkToPin(parameterFromCustomEventNode);
                 PersistentGuid("00000000000000000000000000000000");
                 bHidden(false);
                 bNotConnectable(false);

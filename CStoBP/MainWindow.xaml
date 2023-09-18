@@ -4,8 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:CStoBP"
-        mc:Ignorable="d"
-        Title="CS2BP" Height="978" Width="1181" WindowStyle="ToolWindow" SizeToContent="WidthAndHeight">
+        mc:Ignorable="d" Height="978" Width="1181" WindowStartupLocation="CenterScreen" WindowStyle="ThreeDBorderWindow" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" ScrollViewer.VerticalScrollBarVisibility="Auto">
     <Grid>
         <Grid.Background>
             <LinearGradientBrush EndPoint="0.5,1" StartPoint="0.5,0">
@@ -13,7 +12,7 @@
                 <GradientStop Color="#FF0E0E0E" Offset="1"/>
             </LinearGradientBrush>
         </Grid.Background>
-        <TextBlock x:Name="TB_FunctionName" TextWrapping="Wrap" Text="Function Name" Foreground="#FFF55151" FontSize="32" Margin="287,0,283,21" RenderTransformOrigin="0.5,0.5" Height="181" VerticalAlignment="Bottom">
+        <TextBlock x:Name="TB_FunctionName" TextWrapping="Wrap" Text=" Function Name" Foreground="#FFF55151" FontSize="32" Margin="367,0,10,146" RenderTransformOrigin="0.5,0.5" Height="55" VerticalAlignment="Bottom">
             <TextBlock.Background>
                 <LinearGradientBrush EndPoint="0.5,1" StartPoint="0.5,0">
                     <GradientStop Color="Black" Offset="1"/>
@@ -21,7 +20,7 @@
                 </LinearGradientBrush>
             </TextBlock.Background>
         </TextBlock>
-        <TextBox x:Name="TB_CloudscriptFunction" TextWrapping="Wrap" TextChanged="TextBox_TextChanged" FontFamily="Microsoft Tai Le" Foreground="White" FontSize="15" AcceptsReturn="True" AutomationProperties.HelpText="Enter Javascript Playfab Cloudscript Here" Text=".handlers.InventoryItemChangeInventoryIndex = function (args, context){&#xA;     //Arguments Valid?&#xA;     if (args.itemInstanceId == null || args.inventoryIndexToMoveTo == null)&#xA;     {&#xA;         return {messageValue: &quot;Wrong Arguments Passed In!&quot;};&#xA;     }&#xA; &#xA;     //Gets the User inventory&#xA;     var GetUserInventoryResult = server.GetUserInventory(&#xA;         {&#xA;             PlayFabId: currentPlayerId&#xA;         }&#xA;     );&#xA; &#xA;     //Check if slot is free&#xA;     for (var i = 0; i &lt; GetUserInventoryResult.Inventory.length; i++)&#xA;     {&#xA;         if (args.inventoryIndex == GetUserInventoryResult.Inventory[i].CustomData.inventoryIndex)&#xA;         {&#xA;             return {messageValue: &quot;Failed: Inv Slot Occupied!&quot;};&#xA;         }&#xA;     }&#xA; &#xA;     //Changing the index&#xA;     var UpdateUserInventoryItemDataResult = server.UpdateUserInventoryItemCustomData(&#xA;         {&#xA;             ItemInstanceId: args.itemInstanceId,&#xA;             PlayFabId: currentPlayerId,&#xA;             Data:&#xA;             {&#xA;                 &quot;inventoryIndex&quot;: args.inventoryIndexToMoveTo&#xA;             }&#xA;         }&#xA;     );&#xA; &#xA;     return {messageValue: &quot;Success&quot;};&#xA; }" Margin="10,10,10,227" ScrollViewer.CanContentScroll="True" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" >
+        <TextBox x:Name="TB_CloudscriptFunction" TextWrapping="Wrap" TextChanged="TextBox_TextChanged" FontFamily="Microsoft Tai Le" Foreground="White" FontSize="15" AcceptsReturn="True" AutomationProperties.HelpText="Enter Javascript Playfab Cloudscript Here" Text="Paste your Javascript PlayFab Cloudscript handler function here..." Margin="10,10,10,227" ScrollViewer.CanContentScroll="True" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" >
             <TextBox.Background>
                 <LinearGradientBrush EndPoint="0.5,1" StartPoint="0.5,0">
                     <GradientStop Color="Black"/>
@@ -29,7 +28,7 @@
                 </LinearGradientBrush>
             </TextBox.Background>
         </TextBox>
-        <TextBlock x:Name="TB_FunctionArguments" TextWrapping="Wrap" Text="Function Arguments" Width="237" Foreground="#FFEC5CCC" VerticalAlignment="Bottom" HorizontalAlignment="Left" FontSize="16" Margin="32,0,0,21" Height="181">
+        <TextBlock x:Name="TB_FunctionArguments" TextWrapping="Wrap" Text="Function Arguments" Width="259" Foreground="#FFEC5CCC" VerticalAlignment="Bottom" HorizontalAlignment="Left" FontSize="16" Margin="10,0,0,21" Height="181">
             <TextBlock.Background>
                 <LinearGradientBrush EndPoint="0.5,1" StartPoint="0.5,0">
                     <GradientStop Color="Black" Offset="1"/>
@@ -37,7 +36,7 @@
                 </LinearGradientBrush>
             </TextBlock.Background>
         </TextBlock>
-        <Button x:Name="BTN_Convert" Content="Convert" Height="180" Width="236" Click="Button_Click" VerticalAlignment="Bottom" HorizontalAlignment="Right" Background="Black" FontSize="20" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Margin="0,0,28,21" Cursor="Hand" BorderBrush="#FF0886D3">
+        <Button x:Name="BTN_Convert" Content="Convert" Height="115" Width="236" Click="Button_Click" VerticalAlignment="Bottom" HorizontalAlignment="Right" Background="Black" FontSize="20" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Margin="0,0,10,21" Cursor="Hand" BorderBrush="#FF0886D3">
             <Button.Foreground>
                 <LinearGradientBrush EndPoint="0.5,1" StartPoint="0.5,0">
                     <GradientStop Color="#FF0970D0" Offset="1"/>
@@ -45,5 +44,14 @@
                 </LinearGradientBrush>
             </Button.Foreground>
         </Button>
+        <TextBox x:Name="TB_Prefix" Margin="275,0,0,146" TextWrapping="Wrap" Foreground="#FFF55151" VerticalAlignment="Bottom" Height="54" FontSize="32" TextChanged="TextBox_TextChanged_1" Text="CS" BorderBrush="#FFF34F4F" HorizontalAlignment="Left" Width="87">
+            <TextBox.Background>
+                <LinearGradientBrush EndPoint="0.5,1" StartPoint="0.5,0">
+                    <GradientStop Color="Black" Offset="1"/>
+                    <GradientStop Color="#FF151515" Offset="0"/>
+                </LinearGradientBrush>
+            </TextBox.Background>
+        </TextBox>
+        <CheckBox x:Name="CB_PrintString" Content="Add print string Node?" Margin="0,0,265,64" VerticalAlignment="Bottom" Height="25" Checked="CB_PrintString_Checked" Unchecked="CB_PrintString_Unchecked" Foreground="#FFF55151" Background="#FFF34F4F" FontSize="18" IsChecked="True" BorderBrush="#FF370000" HorizontalAlignment="Right" Width="204" RenderTransformOrigin="0.65,0.55"/>
     </Grid>
 </Window>

@@ -2,6 +2,7 @@
 using System.CodeDom;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.NetworkInformation;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
@@ -21,10 +22,13 @@ namespace CStoBP
     /// </summary>
     public partial class MainWindow : Window
     {
+        public static string prefix = "";
+        public static bool printString = true;
         public MainWindow()
         {
             InitializeComponent();
         }
+
 
         private void Button_Click(object sender, RoutedEventArgs e)
         {
@@ -32,44 +36,125 @@ namespace CStoBP
             string functionName = GetFunctionNameFromCloudscriptFunction(TB_CloudscriptFunction.Text);
 
             GraphNodeCustomEvent customEventNode = new GraphNodeCustomEvent(functionName, functionArgs);
+
+            GraphNode linkToSetJsonParameters;
             GraphNodePrintString printStringNode = new GraphNodePrintString(customEventNode);
-            GraphNodeConstructJsonObject graphNodeConstructJsonObject = new GraphNodeConstructJsonObject();
-            GraphNodeSetJsonVariable graphNodeSetJsonVariable = new GraphNodeSetJsonVariable(printStringNode, graphNodeConstructJsonObject, functionName);
-            
-            //a list of GraphNodeSetStringFieldInJson
-            List<GraphNodeSetStringFieldInJson> graphNodesSetStringFieldInJsonList = new List<GraphNodeSetStringFieldInJson>();
+
+            if (printString)
+            {
+
+                linkToSetJsonParameters = printStringNode;
+            }
+            else
+            {
+                linkToSetJsonParameters = customEventNode;
+            }
             if (functionArgs.Length > 0)
             {
-                //create the first graphNodeSetStringFieldInJsonList and add to graphNodesSetStringFieldInJsonList
-                graphNodesSetStringFieldInJsonList.Add(new GraphNodeSetStringFieldInJson(graphNodeSetJsonVariable.Pins[1], graphNodeSetJsonVariable.Pins[3], customEventNode.Pins[2], functionArgs[0], 0));
-            }
-            for(int i = 1;i < functionArgs.Length;i++) 
+                GraphNodeConstructJsonObject graphNodeConstructJsonObject = new GraphNodeConstructJsonObject();
+            GraphNodeSetJsonVariable graphNodeSetJsonVariable = new GraphNodeSetJsonVariable(linkToSetJsonParameters, graphNodeConstructJsonObject, functionName);
+
+            //a list of GraphNodeSetStringFieldInJson
+            List<GraphNodeSetStringFieldInJson> graphNodesSetStringFieldInJsonList = new List<GraphNodeSetStringFieldInJson>();
+
+            for (int i = 0; i < functionArgs.Length; i++)
             {
-                graphNodesSetStringFieldInJsonList.Add(new GraphNodeSetStringFieldInJson(graphNodesSetStringFieldInJsonList[i-1].Pins[1], graphNodeSetJsonVariable.Pins[3], customEventNode.Pins[2+i], functionArgs[i], i));
+                if(i == 0)
+                {
+                    graphNodesSetStringFieldInJsonList.Add(new GraphNodeSetStringFieldInJson(graphNodeSetJsonVariable.Pins[1], customEventNode.Pins[2 + i], functionArgs[i], i));
+                    graphNodesSetStringFieldInJsonList[0].Pins[2].LinkToPin(graphNodeSetJsonVariable.Pins[3]);
+                }
+                else
+                {
+                    graphNodesSetStringFieldInJsonList.Add(new GraphNodeSetStringFieldInJson(graphNodesSetStringFieldInJsonList[i - 1].Pins[1], customEventNode.Pins[2 + i], functionArgs[i], i));
+                    graphNodesSetStringFieldInJsonList[i - 1].Pins[2].LinkToPin(graphNodeSetJsonVariable.Pins[3]);
+                }
             }
 
             string setStringFieldsNodes = "";
 
-            foreach(GraphNodeSetStringFieldInJson setStringFieldinJsonNode in graphNodesSetStringFieldInJsonList)
-            {
-                setStringFieldsNodes = setStringFieldsNodes + setStringFieldinJsonNode.GetBeginObjectClassString() + "\n";
-            }
 
-            Clipboard.SetText(customEventNode.GetBeginObjectClassString() + "\n" + printStringNode.GetBeginObjectClassString() + "\n" + graphNodeConstructJsonObject.GetBeginObjectClassString() + "\n" + graphNodeSetJsonVariable.GetBeginObjectClassString() + "\n" + setStringFieldsNodes);
-            
-            //show copied to clipboard
-            BTN_Convert.Content = "Copied to clipboard!";
-            //delay 2 seconds
-            Task.Delay(2000).ContinueWith(_ =>
+                foreach (GraphNodeSetStringFieldInJson setStringFieldinJsonNode in graphNodesSetStringFieldInJsonList)
+                {
+                    setStringFieldsNodes = setStringFieldsNodes + setStringFieldinJsonNode.GetBeginObjectClassString() + "\n";
+                }
+
+                GraphNodeMakeRequestStruct graphNodeMakeRequestStruct = new GraphNodeMakeRequestStruct(graphNodeSetJsonVariable.Pins[3], functionName, functionArgs.Length);
+
+                GraphNodeSetStringFieldInJson lastNode = graphNodesSetStringFieldInJsonList[graphNodesSetStringFieldInJsonList.Count - 1];
+                GraphNodeExecuteCloudScript graphNodeExecuteCloudScript = new GraphNodeExecuteCloudScript(lastNode.Pins[1], graphNodeMakeRequestStruct.Pins[0]);
+
+                List<GraphPin> pinsToLinkJsonSetOutput = new List<GraphPin>();
+                for (int i = 0; i < functionArgs.Length; i++)
+                {
+                    pinsToLinkJsonSetOutput.Add(graphNodesSetStringFieldInJsonList[i].Pins[2]);
+                }
+                pinsToLinkJsonSetOutput.Add(graphNodeMakeRequestStruct.Pins[3]);
+                graphNodeSetJsonVariable.Pins[3].LinkToPins(pinsToLinkJsonSetOutput);
+                graphNodeSetJsonVariable.Pins[3].CloseGraphPinText();
+
+                GraphNodeCustomSuccessEvent graphNodeCustomSuccessEvent = new GraphNodeCustomSuccessEvent(functionName, graphNodeExecuteCloudScript.Pins[7], graphNodeExecuteCloudScript);
+                GraphNodeBreakResultStruct graphNodeBreakResultStruct = new GraphNodeBreakResultStruct(graphNodeCustomSuccessEvent);
+                GraphNodeCustomFailedEvent graphNodeCustomFailedEvent = new GraphNodeCustomFailedEvent(functionName, graphNodeExecuteCloudScript.Pins[8], graphNodeExecuteCloudScript);
+                GraphNodeHandleError graphNodeHandleError = new GraphNodeHandleError(graphNodeCustomFailedEvent);
+                GraphNodeMacroHandleSuccessButError graphNodeMacroHandleSuccessButError = new GraphNodeMacroHandleSuccessButError(graphNodeCustomSuccessEvent.Pins[1], graphNodeBreakResultStruct.Pins[1], graphNodeBreakResultStruct);
+
+                if (printString)
+                {
+                    Clipboard.SetText(customEventNode.GetBeginObjectClassString() + "\n" + printStringNode.GetBeginObjectClassString() + "\n" + graphNodeConstructJsonObject.GetBeginObjectClassString() + "\n" + graphNodeSetJsonVariable.GetBeginObjectClassString() + "\n" + setStringFieldsNodes + graphNodeMakeRequestStruct.GetBeginObjectClassString() + "\n" + graphNodeExecuteCloudScript.GetBeginObjectClassString() + "\n" + graphNodeCustomSuccessEvent.GetBeginObjectClassString() + "\n" + graphNodeCustomFailedEvent.GetBeginObjectClassString() + "\n" + graphNodeHandleError.GetBeginObjectClassString() + "\n" + graphNodeBreakResultStruct.GetBeginObjectClassString() + "\n" + graphNodeMacroHandleSuccessButError.GetBeginObjectClassString());
+                }
+                else
+                {
+                    Clipboard.SetText(customEventNode.GetBeginObjectClassString() + "\n" + graphNodeConstructJsonObject.GetBeginObjectClassString() + "\n" + graphNodeSetJsonVariable.GetBeginObjectClassString() + "\n" + setStringFieldsNodes + graphNodeMakeRequestStruct.GetBeginObjectClassString() + "\n" + graphNodeExecuteCloudScript.GetBeginObjectClassString() + "\n" + graphNodeCustomSuccessEvent.GetBeginObjectClassString() + "\n" + graphNodeCustomFailedEvent.GetBeginObjectClassString() + "\n" + graphNodeHandleError.GetBeginObjectClassString() + "\n" + graphNodeBreakResultStruct.GetBeginObjectClassString() + "\n" + graphNodeMacroHandleSuccessButError.GetBeginObjectClassString());
+                }
+
+                //show copied to clipboard
+                BTN_Convert.Content = "Copied to clipboard!";
+                //delay 2 seconds
+                Task.Delay(2000).ContinueWith(_ =>
+                {
+                    //after 2 seconds, reset button text
+                    BTN_Convert.Dispatcher.Invoke(() => BTN_Convert.Content = "Convert");
+                });
+            }
+            else if (functionArgs.Length == 0)
             {
-                //after 2 seconds, reset button text
-                BTN_Convert.Dispatcher.Invoke(() => BTN_Convert.Content = "Convert");
-            });
+
+                GraphNodeMakeRequestStruct graphNodeMakeRequestStruct = new GraphNodeMakeRequestStruct(functionName, 0);
+
+                GraphNodeMakeRequestStruct lastNode = graphNodeMakeRequestStruct;
+                GraphNodeExecuteCloudScript graphNodeExecuteCloudScript = new GraphNodeExecuteCloudScript(lastNode.Pins[1], graphNodeMakeRequestStruct.Pins[0]);
+
+
+
+                GraphNodeCustomSuccessEvent graphNodeCustomSuccessEvent = new GraphNodeCustomSuccessEvent(functionName, graphNodeExecuteCloudScript.Pins[7], graphNodeExecuteCloudScript);
+                GraphNodeBreakResultStruct graphNodeBreakResultStruct = new GraphNodeBreakResultStruct(graphNodeCustomSuccessEvent);
+                GraphNodeCustomFailedEvent graphNodeCustomFailedEvent = new GraphNodeCustomFailedEvent(functionName, graphNodeExecuteCloudScript.Pins[8], graphNodeExecuteCloudScript);
+                GraphNodeHandleError graphNodeHandleError = new GraphNodeHandleError(graphNodeCustomFailedEvent);
+                GraphNodeMacroHandleSuccessButError graphNodeMacroHandleSuccessButError = new GraphNodeMacroHandleSuccessButError(graphNodeCustomSuccessEvent.Pins[1], graphNodeBreakResultStruct.Pins[1], graphNodeBreakResultStruct);
+
+                if (printString)
+                {
+                    Clipboard.SetText(customEventNode.GetBeginObjectClassString() + "\n" + printStringNode.GetBeginObjectClassString() + "\n" + graphNodeExecuteCloudScript.GetBeginObjectClassString() + "\n" + graphNodeCustomSuccessEvent.GetBeginObjectClassString() + "\n" + graphNodeCustomFailedEvent.GetBeginObjectClassString() + "\n" + graphNodeHandleError.GetBeginObjectClassString() + "\n" + graphNodeBreakResultStruct.GetBeginObjectClassString() + "\n" + graphNodeMacroHandleSuccessButError.GetBeginObjectClassString());
+                }
+                else
+                {
+                    Clipboard.SetText(customEventNode.GetBeginObjectClassString() + "\n" + graphNodeMakeRequestStruct.GetBeginObjectClassString() + "\n" + graphNodeExecuteCloudScript.GetBeginObjectClassString() + "\n" + graphNodeCustomSuccessEvent.GetBeginObjectClassString() + "\n" + graphNodeCustomFailedEvent.GetBeginObjectClassString() + "\n" + graphNodeHandleError.GetBeginObjectClassString() + "\n" + graphNodeBreakResultStruct.GetBeginObjectClassString() + "\n" + graphNodeMacroHandleSuccessButError.GetBeginObjectClassString());
+                }
+
+                //show copied to clipboard
+                BTN_Convert.Content = "Copied to clipboard!";
+                //delay 2 seconds
+                Task.Delay(2000).ContinueWith(_ =>
+                {
+                    //after 2 seconds, reset button text
+                    BTN_Convert.Dispatcher.Invoke(() => BTN_Convert.Content = "Convert");
+                });
+            }
         }
 
         private void TextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
-
             if(TB_CloudscriptFunction != null && TB_CloudscriptFunction.Text.Length > 12 && TB_CloudscriptFunction.Text.Substring(0, 8) == "handlers")
             {
                 TB_FunctionArguments.Text = "";
@@ -88,8 +173,24 @@ namespace CStoBP
                     }
                 }
             }
-
         }
+
+        private void TextBox_TextChanged_1(object sender, TextChangedEventArgs e)
+        {
+            prefix = TB_Prefix.Text;
+        }
+
+        private void CB_PrintString_Checked(object sender, RoutedEventArgs e)
+        {
+            printString = true;
+        }
+
+        private void CB_PrintString_Unchecked(object sender, RoutedEventArgs e)
+        {
+            printString = false;
+        }
+
+
         #region <Classes>
 
         class GraphNode
@@ -220,13 +321,38 @@ namespace CStoBP
                        "   " + myPins + "\n" +
                        "End Object";
                 }
-
                 return
                     "Begin Object Class=" + Class + " Name=" + Wrap(Name) + "\n" +
                     "   " + "FunctionReference=" + FunctionReference + "\n" +
                     "   " + "NodePosX=" + NodePosX + "\n" +
                     "   " + "NodePosY=" + NodePosY + "\n" +
                     "   " + "ErrorType=" + ErrorType + "\n" +
+                    "   " + "NodeGuid=" + NodeGuid + "\n" +
+                    "End Object";
+            }
+        }
+        class GraphNodeKismetMacro : GraphNode
+        {
+            public string MacroReference = "";
+            public override string GetBeginObjectClassString()
+            {
+                if (Pins.Length > 0)
+                {
+                    string myPins = PinsToString(Pins);
+                    return
+                       "Begin Object Class=" + Class + " Name=" + Wrap(Name) + "\n" +
+                       "   " + "MacroGraphReference=" + MacroReference + "\n" +
+                       "   " + "NodePosX=" + NodePosX + "\n" +
+                       "   " + "NodePosY=" + NodePosY + "\n" +
+                       "   " + "NodeGuid=" + NodeGuid + "\n" +
+                       "   " + myPins + "\n" +
+                       "End Object";
+                }
+                return
+                    "Begin Object Class=" + Class + " Name=" + Wrap(Name) + "\n" +
+                    "   " + "MacroGraphReference=" + MacroReference + "\n" +
+                    "   " + "NodePosX=" + NodePosX + "\n" +
+                    "   " + "NodePosY=" + NodePosY + "\n" +
                     "   " + "NodeGuid=" + NodeGuid + "\n" +
                     "End Object";
             }
@@ -259,6 +385,21 @@ namespace CStoBP
                     "End Object";
             }
         }
+        class GraphNodeMacroHandleSuccessButError : GraphNodeKismetMacro
+        {
+            public GraphNodeMacroHandleSuccessButError(GraphPin thenPinToLink, GraphPin errorPinToLink, GraphNodeBreakResultStruct graphNodeForCoordinates)
+            {
+                Class = "/Script/BlueprintGraph.K2Node_MacroInstance";
+                Name = "K2Node_MacroInstance_1";
+                NodePosX = (int.Parse(graphNodeForCoordinates.NodePosX) + 416).ToString();
+                NodePosY = (int.Parse(graphNodeForCoordinates.NodePosY) - 64).ToString();
+                MacroReference = "(MacroGraph=/Script/Engine.EdGraph'\"Handle Cloudscript Success Call But Fail Due to error\"',GraphBlueprint=/Script/Engine.Blueprint'\"/Game/_D/BPs/GameInstanceBP.GameInstanceBP\"',GraphGuid=7C48E03C47A0E6C9DF74BDB0509A9738)";
+                AddPin(new GraphPinExec(this, thenPinToLink, "exec"));
+                AddPin(new GraphPinJsonIn(this, errorPinToLink, "error", "", "", false));
+                AddPin(new GraphPinThen(this, "Success"));
+                AddPin(new GraphPinThen(this, "Fail"));
+            }
+        }
         class GraphNodeCustomEvent : GraphNode
         {
             public GraphNodeCustomEvent(string customFunctionName, string[] customFunctionArgs)
@@ -267,7 +408,14 @@ namespace CStoBP
                 Name = "K2Node_CustomEvent_54";
                 NodePosX = "64";
                 NodePosY = "272";
-                CustomFunctionName = "CS_" + customFunctionName;
+                if (prefix == "")
+                {
+                    CustomFunctionName = customFunctionName;
+                }
+                else
+                {
+                    CustomFunctionName = prefix + "_" + customFunctionName;
+                }
                 AddPin(new GraphPinDelegateHandle(this));
                 AddPin(new GraphPinThen(this));
                 foreach(string argumentName in customFunctionArgs)
@@ -275,6 +423,56 @@ namespace CStoBP
                     AddPin(new GraphPinStringOut(this, argumentName));
                     AddUserDefinedPin(new GraphPinStringUserDefined(this, argumentName));
                 }
+            }
+
+        }
+        class GraphNodeCustomSuccessEvent : GraphNode
+        {
+            public GraphNodeCustomSuccessEvent(string customFunctionName, GraphPin pinToLink, GraphNode nodeBefore)
+            {
+                Class = "/Script/BlueprintGraph.K2Node_CustomEvent";
+                Name = "K2Node_CustomEvent_8";
+                NodePosX = (int.Parse(nodeBefore.NodePosX)).ToString();
+                NodePosY = (int.Parse(nodeBefore.NodePosY) - 160).ToString();
+                if (prefix == "")
+                {
+                    CustomFunctionName = "Success_" + customFunctionName;
+                }
+                else
+                {
+                    CustomFunctionName = "Success_" + prefix + "_" + customFunctionName;
+                }
+                AddPin(new GraphPinDelegateHandle(this, pinToLink));
+                AddPin(new GraphPinThen(this));
+                AddPin(new GraphPinResultStructOut(this));
+                AddPin(new GraphPinCustomDataOut(this));
+                AddUserDefinedPin(new GraphPinUserDefinedSuccessStructOut(this));
+                AddUserDefinedPin(new GraphPinUserDefinedCustomDataOut(this));
+            }
+
+        }
+        class GraphNodeCustomFailedEvent : GraphNode
+        {
+            public GraphNodeCustomFailedEvent(string customFunctionName, GraphPin pinToLink, GraphNode nodeBefore)
+            {
+                Class = "/Script/BlueprintGraph.K2Node_CustomEvent";
+                Name = "K2Node_CustomEvent_9";
+                NodePosX = (int.Parse(nodeBefore.NodePosX)).ToString();
+                NodePosY = (int.Parse(nodeBefore.NodePosY) + 224).ToString();
+                if (prefix == "")
+                {
+                    CustomFunctionName = "Failed_" + customFunctionName;
+                }
+                else
+                {
+                    CustomFunctionName = "Failed_" + prefix + "_" + customFunctionName;
+                }
+                AddPin(new GraphPinDelegateHandle(this, pinToLink));
+                AddPin(new GraphPinThen(this));
+                AddPin(new GraphPinFailedStructOut(this));
+                AddPin(new GraphPinCustomDataOut(this));
+                AddUserDefinedPin(new GraphPinUserDefinedFailedStructOut(this));
+                AddUserDefinedPin(new GraphPinUserDefinedCustomDataOut(this));
             }
 
         }
@@ -543,6 +741,7 @@ namespace CStoBP
                 Pins[9].bAdvancedView(true);
                 Pins[9].bOrphanedPin(false);
                 Pins[9].CloseGraphPinText();
+
             }
             public override string GetBeginObjectClassString()
             {
@@ -588,18 +787,61 @@ namespace CStoBP
                    "End Object";
             }
         }
+        class GraphNodeHandleError : GraphNodeKismetFunction
+        {
+            public GraphNodeHandleError(GraphNode nodeBefore)
+            {
+                Class = "/Script/BlueprintGraph.K2Node_CallFunction";
+                Name = "K2Node_CallFunction_0";
+                FunctionReference = "(MemberParent=/Script/Engine.BlueprintGeneratedClass'\"/Darkion_Function_Library/FLib_Darkion.FLib_Darkion_C\"',MemberName=\"Popup Message for Error\",MemberGuid=7D27D2264C7598635335A48743261F07)";
+                NodePosX = (int.Parse(nodeBefore.NodePosX) + 464).ToString();
+                NodePosY = (int.Parse(nodeBefore.NodePosY) + 16).ToString();
+                AddPin(new GraphPinExec(this, nodeBefore.Pins[1]));
+                AddPin(new GraphPinThen(this));
+                AddPin(new GraphPinSelfFLibDarkionRef(this));
+                AddPin(new GraphPinFailedStructIn(this, nodeBefore.Pins[2]));
+                AddPin(new GraphPinBoolIn(this, "IsCriticalError", "", "Is Critical Error?\\nBoolean"));
+                AddPin(new GraphPin__WorldContextObject(this));
+            }
+            public override string GetBeginObjectClassString()
+            {
+                string myPins = PinsToString(Pins);
+                return
+                   "Begin Object Class=" + Class + " Name=" + Wrap(Name) + "\n" +
+                   "   " + "FunctionReference=" + FunctionReference + "\n" +
+                   "   " + "NodePosX=" + NodePosX + "\n" +
+                   "   " + "NodePosY=" + NodePosY + "\n" +
+                   "   " + "NodeGuid=" + NodeGuid + "\n" +
+                   "   " + myPins + "\n" +
+                   "End Object";
+            }
+        }
         class GraphNodeSetJsonVariable : GraphNodeKismetVariable
         {
             public GraphNodeSetJsonVariable(GraphNode previousNode, GraphNode constructNode, string csFunctionName)
             {
                 Class = "/Script/BlueprintGraph.K2Node_VariableSet";
                 Name = "K2Node_VariableSet_19";
-                VariableReference = "(MemberName=\"CS_" + csFunctionName + "Params" + "\",MemberGuid=" + GenerateRandomHexNumber() +",bSelfContext=True)";
+                if (prefix == "")
+                {
+                    VariableReference = "(MemberName=\"" + csFunctionName + "Params" + "\",MemberGuid=" + GenerateRandomHexNumber() + ",bSelfContext=True)";
+                }
+                else
+                {
+                    VariableReference = "(MemberName=\"" + prefix + "_" + csFunctionName + "Params" + "\",MemberGuid=" + GenerateRandomHexNumber() + ",bSelfContext=True)";
+                }
                 NodePosX = "528";
                 NodePosY = "112";
                 AddPin(new GraphPinExec(this, previousNode.Pins[1]));
                 AddPin(new GraphPinThen(this));
-                AddPin(new GraphPinJsonIn(this, constructNode.Pins[2], "CS_" + csFunctionName + "Params", "", ""));
+                if (prefix == "")
+                {
+                    AddPin(new GraphPinJsonIn(this, constructNode.Pins[2], csFunctionName + "Params", "", "", false));
+                }
+                else
+                {
+                    AddPin(new GraphPinJsonIn(this, constructNode.Pins[2], prefix + "_" + csFunctionName + "Params", "", "", false));
+                }
                 AddPin(new GraphPinJsonOut(this));
                 AddPin(new GraphPinSelfGameInstanceBPRef(this));
             }
@@ -637,9 +879,22 @@ namespace CStoBP
                 NodePosY = (80 + 192 * indexForSpaceBetweenNodes).ToString();
                 AddPin(new GraphPinExec(this, linkToExec));
                 AddPin(new GraphPinThen(this));
-                AddPin(new GraphPinJsonIn(this, linkToJsonObjectInput, "self", "NSLOCTEXT(\"K2Node\", \"Target\", \"Target\")", "Target\\nPlay Fab Json Object Object Reference"));
+                AddPin(new GraphPinJsonIn(this, "self", "NSLOCTEXT(\"K2Node\", \"Target\", \"Target\")", "Target\\nPlay Fab Json Object Object Reference", false));
                 AddPin(new GraphPinStringFieldName(this, stringFieldName));
-                AddPin(new GraphPinStringIn(this, stringFieldName, "String Value\\nString", linkToStringValueInput));
+                AddPin(new GraphPinStringIn(this, "String Value\\nString", linkToStringValueInput));
+            }
+            public GraphNodeSetStringFieldInJson(GraphPin linkToExec, GraphPin linkToStringValueInput, string stringFieldName, int indexForSpaceBetweenNodes)
+            {
+                Class = "/Script/BlueprintGraph.K2Node_CallFunction";
+                Name = "K2Node_CallFunction_19" + indexForSpaceBetweenNodes;
+                FunctionReference = "(MemberParent=/Script/CoreUObject.Class'\"/Script/PlayFab.PlayFabJsonObject\"',MemberName=\"SetStringField\")";
+                NodePosX = "1008";
+                NodePosY = (80 + 192 * indexForSpaceBetweenNodes).ToString();
+                AddPin(new GraphPinExec(this, linkToExec));
+                AddPin(new GraphPinThen(this));
+                AddPin(new GraphPinJsonIn(this, "self", "NSLOCTEXT(\"K2Node\", \"Target\", \"Target\")", "Target\\nPlay Fab Json Object Object Reference", false));
+                AddPin(new GraphPinStringFieldName(this, stringFieldName));
+                AddPin(new GraphPinStringIn(this, "String Value\\nString", linkToStringValueInput));
             }
             public override string GetBeginObjectClassString()
             {
@@ -649,6 +904,145 @@ namespace CStoBP
                    "   " + "FunctionReference=" + FunctionReference + "\n" +
                    "   " + "NodePosX=" + NodePosX + "\n" +
                    "   " + "NodePosY=" + NodePosY + "\n" +
+                   "   " + "NodeGuid=" + NodeGuid + "\n" +
+                   "   " + myPins + "\n" +
+                   "End Object";
+            }
+        }
+        class GraphNodeExecuteCloudScript : GraphNodeKismetFunction
+        {
+            string ProxyFactoryFunctionName;
+            string ProxyFactoryClass;
+            string ProxyClass;
+            public GraphNodeExecuteCloudScript(GraphPin linkToExec, GraphPin linkToRequestStruct)
+            {
+                Class = "/Script/BlueprintGraph.K2Node_AsyncAction";
+                Name = "K2Node_AsyncAction_18";
+                ProxyFactoryFunctionName = "ExecuteCloudScript";
+                ProxyFactoryClass = "/Script/CoreUObject.Class'\"/Script/PlayFab.PlayFabClientAPI\"'";
+                ProxyClass = "/Script/CoreUObject.Class'\"/Script/PlayFab.PlayFabClientAPI\"'";
+                NodePosX = (int.Parse(linkToExec._ParentNodeRef.NodePosX) + 550).ToString();
+                NodePosY = (int.Parse(linkToExec._ParentNodeRef.NodePosY) + 16).ToString();
+                AddPin(new GraphPinExec(this, linkToExec));
+                AddPin(new GraphPinThen(this));
+                AddPin(new GraphPinOnPlayFabResponse(this));
+                AddPin(new GraphPinResponseStruct(this));
+                AddPin(new GraphPinCustomDataOut(this));
+                AddPin(new GraphPinWasSuccessfulOut(this));
+                AddPin(new GraphPinRequestStructIn(this, linkToRequestStruct));
+                AddPin(new GraphPinDelegateOnSuccess(this));
+                AddPin(new GraphPinDelegateOnFailure(this));
+                AddPin(new GraphPinCustomDataIn(this));
+            }
+            public override string GetBeginObjectClassString()
+            {
+                string myPins = PinsToString(Pins);
+                return
+                   "Begin Object Class=" + Class + " Name=" + Wrap(Name) + "\n" +
+                   "   " + "ProxyFactoryFunctionName=" + Wrap(ProxyFactoryFunctionName) + "\n" +
+                   "   " + "ProxyFactoryClass=" + ProxyFactoryClass + "\n" +
+                   "   " + "ProxyClass=" + ProxyClass + "\n" +
+                   "   " + "NodePosX=" + NodePosX + "\n" +
+                   "   " + "NodePosY=" + NodePosY + "\n" +
+                   "   " + "NodeGuid=" + NodeGuid + "\n" +
+                   "   " + myPins + "\n" +
+                   "End Object";
+            }
+        }
+        class GraphNodeMakeRequestStruct : GraphNode
+        {
+            bool bMadeAfterOverridePinRemoval;
+            public GraphNodeMakeRequestStruct(GraphPin inputFuncParametersJsonObj, string functionName, int indexForSpaceBetweenNodes)
+            {
+                Class = "/Script/BlueprintGraph.K2Node_MakeStruct";
+                Name = "K2Node_MakeStruct_20";
+                bMadeAfterOverridePinRemoval = true;
+                NodePosX = "928";
+                NodePosY = (80 + 192 * indexForSpaceBetweenNodes).ToString();
+                AddPin(new GraphPinRequestStructOut(this));
+                AddPin(new GraphPinCustomTagsIn(this));
+                AddPin(new GraphPinStringIn(this, functionName));
+                AddPin(new GraphPinJsonIn(this, "FunctionParameter", Wrap("Function Parameter"), "Function Parameter\\nPlay Fab Json Object Object Reference\\n\\nFunction Parameter:\\r\\nObject that is passed in to the function as the first argument", true));
+                AddPin(new GraphPinBoolIn(this, "GeneratePlayStreamEvent", Wrap("Generate Play Stream Event"), "Generate Play Stream Event\\nBoolean\\n\\nGenerate Play Stream Event:\\r\\nGenerate a \\'player_executed_cloudscript\\' PlayStream event containing the results of the function execution and other\\ncontextual information. This event will show up in the PlayStream debugger console for the player in Game Manager."));
+                AddPin(new GraphPinByteIn(this, "RevisionSelection", Wrap("Revision Selection"), "Revision Selection\\nECloudScriptRevisionOption Enum\\n\\nRevision Selection:\\r\\nOption for which revision of the CloudScript to execute. \\'Latest\\' executes the most recently created revision,\\'Live\\'\\nexecutes the current live,published revision,and \\'Specific\\' executes the specified revision. The default value is\\n\\'Specific\\',if the SpeificRevision parameter is specified,otherwise it is \\'Live\\'.", "/Script/CoreUObject.Enum'\"/Script/PlayFab.ECloudScriptRevisionOption\"'", "pfenum_Live", "pfenum_Live"));
+                AddPin(new GraphPinIntIn(this, "SpecificRevision", Wrap("Specific Revision"), "Specific Revision\\nInteger\\n\\nSpecific Revision:\\r\\nThe specivic revision to execute,when RevisionSelection is set to \\'Specific\\'", "0", "0"));
+                AddPin(new GraphPinAuthContextIn(this, true));
+            }
+            public GraphNodeMakeRequestStruct(string functionName, int indexForSpaceBetweenNodes)
+            {
+                Class = "/Script/BlueprintGraph.K2Node_MakeStruct";
+                Name = "K2Node_MakeStruct_20";
+                bMadeAfterOverridePinRemoval = true;
+                NodePosX = "928";
+                NodePosY = (80 + 192 * indexForSpaceBetweenNodes).ToString();
+                AddPin(new GraphPinRequestStructOut(this));
+                AddPin(new GraphPinCustomTagsIn(this));
+                AddPin(new GraphPinStringIn(this, functionName));
+                AddPin(new GraphPinJsonIn(this, "FunctionParameter", Wrap("Function Parameter"), "Function Parameter\\nPlay Fab Json Object Object Reference\\n\\nFunction Parameter:\\r\\nObject that is passed in to the function as the first argument", true));
+                AddPin(new GraphPinBoolIn(this, "GeneratePlayStreamEvent", Wrap("Generate Play Stream Event"), "Generate Play Stream Event\\nBoolean\\n\\nGenerate Play Stream Event:\\r\\nGenerate a \\'player_executed_cloudscript\\' PlayStream event containing the results of the function execution and other\\ncontextual information. This event will show up in the PlayStream debugger console for the player in Game Manager."));
+                AddPin(new GraphPinByteIn(this, "RevisionSelection", Wrap("Revision Selection"), "Revision Selection\\nECloudScriptRevisionOption Enum\\n\\nRevision Selection:\\r\\nOption for which revision of the CloudScript to execute. \\'Latest\\' executes the most recently created revision,\\'Live\\'\\nexecutes the current live,published revision,and \\'Specific\\' executes the specified revision. The default value is\\n\\'Specific\\',if the SpeificRevision parameter is specified,otherwise it is \\'Live\\'.", "/Script/CoreUObject.Enum'\"/Script/PlayFab.ECloudScriptRevisionOption\"'", "pfenum_Live", "pfenum_Live"));
+                AddPin(new GraphPinIntIn(this, "SpecificRevision", Wrap("Specific Revision"), "Specific Revision\\nInteger\\n\\nSpecific Revision:\\r\\nThe specivic revision to execute,when RevisionSelection is set to \\'Specific\\'", "0", "0"));
+                AddPin(new GraphPinAuthContextIn(this, true));
+            }
+            public override string GetBeginObjectClassString()
+            {
+                string myPins = PinsToString(Pins);
+                return
+                   "Begin Object Class=" + Class + " Name=" + Wrap(Name) + "\n" +
+                   "   " + "bMadeAfterOverridePinRemoval=" + bMadeAfterOverridePinRemoval + "\n" +
+                   "   " + "ShowPinForProperties(0)=(PropertyName=\"CustomTags\",PropertyFriendlyName=\"Custom Tags\",PropertyTooltip=LOCGEN_FORMAT_NAMED(INVTEXT(\"{0}{Delimiter}{1}\"),\"0\",\"Custom Tags\",\"1\",\"The optional custom tags associated with the request (e.g. build number,external trace identifiers,etc.).\",\"Delimiter\",\":\\r\\n\"),CategoryName=\"PlayFab | Client | Server-Side Cloud Script Models\",bShowPin=True,bCanToggleVisibility=True)" + "\n" +
+                   "   " + "ShowPinForProperties(1)=(PropertyName=\"FunctionName\",PropertyFriendlyName=\"Function Name\",PropertyTooltip=LOCGEN_FORMAT_NAMED(INVTEXT(\"{0}{Delimiter}{1}\"),\"0\",\"Function Name\",\"1\",\"The name of the CloudScript function to execute\",\"Delimiter\",\":\\r\\n\"),CategoryName=\"PlayFab | Client | Server-Side Cloud Script Models\",bShowPin=True,bCanToggleVisibility=True)" + "\n" +
+                   "   " + "ShowPinForProperties(2)=(PropertyName=\"FunctionParameter\",PropertyFriendlyName=\"Function Parameter\",PropertyTooltip=LOCGEN_FORMAT_NAMED(INVTEXT(\"{0}{Delimiter}{1}\"),\"0\",\"Function Parameter\",\"1\",\"Object that is passed in to the function as the first argument\",\"Delimiter\",\":\\r\\n\"),CategoryName=\"PlayFab | Client | Server-Side Cloud Script Models\",bShowPin=True,bCanToggleVisibility=True)" + "\n" +
+                   "   " + "ShowPinForProperties(3)=(PropertyName=\"GeneratePlayStreamEvent\",PropertyFriendlyName=\"Generate Play Stream Event\",PropertyTooltip=LOCGEN_FORMAT_NAMED(INVTEXT(\"{0}{Delimiter}{1}\"),\"0\",\"Generate Play Stream Event\",\"1\",\"Generate a \\'player_executed_cloudscript\\' PlayStream event containing the results of the function execution and other\\ncontextual information. This event will show up in the PlayStream debugger console for the player in Game Manager.\",\"Delimiter\",\":\\r\\n\"),CategoryName=\"PlayFab | Client | Server-Side Cloud Script Models\",bShowPin=True,bCanToggleVisibility=True)" + "\n" +
+                   "   " + "ShowPinForProperties(4)=(PropertyName=\"RevisionSelection\",PropertyFriendlyName=\"Revision Selection\",PropertyTooltip=LOCGEN_FORMAT_NAMED(INVTEXT(\"{0}{Delimiter}{1}\"),\"0\",\"Revision Selection\",\"1\",\"Option for which revision of the CloudScript to execute. \\'Latest\\' executes the most recently created revision,\\'Live\\'\\nexecutes the current live,published revision,and \\'Specific\\' executes the specified revision. The default value is\\n\\'Specific\\',if the SpeificRevision parameter is specified,otherwise it is \\'Live\\'.\",\"Delimiter\",\":\\r\\n\"),CategoryName=\"PlayFab | Client | Server-Side Cloud Script Models\",bShowPin=True,bCanToggleVisibility=True)" + "\n" +
+                   "   " + "ShowPinForProperties(5)=(PropertyName=\"SpecificRevision\",PropertyFriendlyName=\"Specific Revision\",PropertyTooltip=LOCGEN_FORMAT_NAMED(INVTEXT(\"{0}{Delimiter}{1}\"),\"0\",\"Specific Revision\",\"1\",\"The specivic revision to execute,when RevisionSelection is set to \\'Specific\\'\",\"Delimiter\",\":\\r\\n\"),CategoryName=\"PlayFab | Client | Server-Side Cloud Script Models\",bShowPin=True,bCanToggleVisibility=True)" + "\n" +
+                   "   " + "ShowPinForProperties(6)=(PropertyName=\"AuthenticationContext\",PropertyFriendlyName=\"Authentication Context\",PropertyTooltip=LOCGEN_FORMAT_NAMED(INVTEXT(\"{0}{Delimiter}{1}\"),\"0\",\"Authentication Context\",\"1\",\"An optional authentication context (can used in multi-user scenarios)\",\"Delimiter\",\":\\r\\n\"),CategoryName=\"PlayFab | Core\",bShowPin=True,bCanToggleVisibility=True)" + "\n" +
+                   "   " + "StructType=/Script/CoreUObject.ScriptStruct'\"/Script/PlayFab.ClientExecuteCloudScriptRequest\"'" + "\n" +
+                   "   " + "NodePosX=" + NodePosX + "\n" +
+                   "   " + "NodePosY=" + NodePosY + "\n" +
+                   "   " + "AdvancedPinDisplay=Shown" + "\n" +
+                   "   " + "NodeGuid=" + NodeGuid + "\n" +
+                   "   " + myPins + "\n" +
+                   "End Object";
+            }
+        }
+        class GraphNodeBreakResultStruct : GraphNode
+        {
+            bool bMadeAfterOverridePinRemoval;
+            public GraphNodeBreakResultStruct(GraphNode nodeBefore)
+            {
+                Class = "/Script/BlueprintGraph.K2Node_BreakStruct";
+                Name = "K2Node_BreakStruct_11";
+                bMadeAfterOverridePinRemoval = true;
+                NodePosX = (int.Parse(nodeBefore.NodePosX) + 448).ToString();
+                NodePosY = (int.Parse(nodeBefore.NodePosY) + 80).ToString();
+                AddPin(new GraphPinResultStructIn(this, nodeBefore.Pins[2], "ClientExecuteCloudScriptResult"));
+                AddPin(new GraphPinJsonOut(this, "Error", "Error", @"Error\nPlay Fab Json Object Object Reference\n\nError:\r\nInformation about the error, if any, that occurred during execution"));
+                AddPin(new GraphPinJsonOut(this, "FunctionResult", "Function Result", @"Function Result\nPlay Fab Json Object Object Reference\n\nFunction Result:\r\nThe object returned from the CloudScript function, if any", true));
+            }
+            public override string GetBeginObjectClassString()
+            {
+                string myPins = PinsToString(Pins);
+                return
+                   "Begin Object Class=" + Class + " Name=" + Wrap(Name) + "\n" +
+                   "   " + "bMadeAfterOverridePinRemoval=" + bMadeAfterOverridePinRemoval + "\n" +
+                   "   " + "ShowPinForProperties(0)=(PropertyName=\"APIRequestsIssued\",PropertyFriendlyName=\"APIRequests Issued\",PropertyTooltip=LOCGEN_FORMAT_NAMED(INVTEXT(\"{0}{Delimiter}{1}\"), \"0\", \"APIRequests Issued\", \"1\", \"Number of PlayFab API requests issued by the CloudScript function\", \"Delimiter\", \":\\r\\n\"),CategoryName=\"PlayFab | Client | Server-Side Cloud Script Models\",bShowPin=False,bCanToggleVisibility=True)" + "\n" +
+                   "   " + "ShowPinForProperties(1)=(PropertyName=\"Error\",PropertyFriendlyName=\"Error\",PropertyTooltip=LOCGEN_FORMAT_NAMED(INVTEXT(\"{0}{Delimiter}{1}\"), \"0\", \"Error\", \"1\", \"Information about the error, if any, that occurred during execution\", \"Delimiter\", \":\\r\\n\"),CategoryName=\"PlayFab | Client | Server-Side Cloud Script Models\",bShowPin=True,bCanToggleVisibility=True)" + "\n" +
+                   "   " + "ShowPinForProperties(2)=(PropertyName=\"ExecutionTimeSeconds\",PropertyFriendlyName=\"Execution Time Seconds\",PropertyTooltip=\"Execution Time Seconds\",CategoryName=\"PlayFab | Client | Server-Side Cloud Script Models\",bShowPin=False,bCanToggleVisibility=True)" + "\n" +
+                   "   " + "ShowPinForProperties(3)=(PropertyName=\"FunctionName\",PropertyFriendlyName=\"Function Name\",PropertyTooltip=LOCGEN_FORMAT_NAMED(INVTEXT(\"{0}{Delimiter}{1}\"), \"0\", \"Function Name\", \"1\", \"The name of the function that executed\", \"Delimiter\", \":\\r\\n\"),CategoryName=\"PlayFab | Client | Server-Side Cloud Script Models\",bShowPin=False,bCanToggleVisibility=True)" + "\n" +
+                   "   " + "ShowPinForProperties(4)=(PropertyName=\"FunctionResult\",PropertyFriendlyName=\"Function Result\",PropertyTooltip=LOCGEN_FORMAT_NAMED(INVTEXT(\"{0}{Delimiter}{1}\"), \"0\", \"Function Result\", \"1\", \"The object returned from the CloudScript function, if any\", \"Delimiter\", \":\\r\\n\"),CategoryName=\"PlayFab | Client | Server-Side Cloud Script Models\",bShowPin=True,bCanToggleVisibility=True)" + "\n" +
+                   "   " + "ShowPinForProperties(5)=(PropertyName=\"FunctionResultTooLarge\",PropertyFriendlyName=\"Function Result Too Large\",PropertyTooltip=LOCGEN_FORMAT_NAMED(INVTEXT(\"{0}{Delimiter}{1}\"), \"0\", \"Function Result Too Large\", \"1\", \"Flag indicating if the FunctionResult was too large and was subsequently dropped from this event. This only occurs if\\nthe total event size is larger than 350KB.\", \"Delimiter\", \":\\r\\n\"),CategoryName=\"PlayFab | Client | Server-Side Cloud Script Models\",bShowPin=False,bCanToggleVisibility=True)" + "\n" +
+                   "   " + "ShowPinForProperties(6)=(PropertyName=\"HttpRequestsIssued\",PropertyFriendlyName=\"Http Requests Issued\",PropertyTooltip=LOCGEN_FORMAT_NAMED(INVTEXT(\"{0}{Delimiter}{1}\"), \"0\", \"Http Requests Issued\", \"1\", \"Number of external HTTP requests issued by the CloudScript function\", \"Delimiter\", \":\\r\\n\"),CategoryName=\"PlayFab | Client | Server-Side Cloud Script Models\",bShowPin=False,bCanToggleVisibility=True)" + "\n" +
+                   "   " + "ShowPinForProperties(7)=(PropertyName=\"Logs\",PropertyFriendlyName=\"Logs\",PropertyTooltip=LOCGEN_FORMAT_NAMED(INVTEXT(\"{0}{Delimiter}{1}\"), \"0\", \"Logs\", \"1\", \"Entries logged during the function execution. These include both entries logged in the function code using log.info()\\nand log.error() and error entries for API and HTTP request failures.\", \"Delimiter\", \":\\r\\n\"),CategoryName=\"PlayFab | Client | Server-Side Cloud Script Models\",bShowPin=False,bCanToggleVisibility=True)" + "\n" +
+                   "   " + "ShowPinForProperties(8)=(PropertyName=\"LogsTooLarge\",PropertyFriendlyName=\"Logs Too Large\",PropertyTooltip=LOCGEN_FORMAT_NAMED(INVTEXT(\"{0}{Delimiter}{1}\"), \"0\", \"Logs Too Large\", \"1\", \"Flag indicating if the logs were too large and were subsequently dropped from this event. This only occurs if the total\\nevent size is larger than 350KB after the FunctionResult was removed.\", \"Delimiter\", \":\\r\\n\"),CategoryName=\"PlayFab | Client | Server-Side Cloud Script Models\",bShowPin=False,bCanToggleVisibility=True)" + "\n" +
+                   "   " + "ShowPinForProperties(9)=(PropertyName=\"MemoryConsumedBytes\",PropertyFriendlyName=\"Memory Consumed Bytes\",PropertyTooltip=\"Memory Consumed Bytes\",CategoryName=\"PlayFab | Client | Server-Side Cloud Script Models\",bShowPin=False,bCanToggleVisibility=True)" + "\n" +
+                   "   " + "ShowPinForProperties(10)=(PropertyName=\"ProcessorTimeSeconds\",PropertyFriendlyName=\"Processor Time Seconds\",PropertyTooltip=LOCGEN_FORMAT_NAMED(INVTEXT(\"{0}{Delimiter}{1}\"), \"0\", \"Processor Time Seconds\", \"1\", \"Processor time consumed while executing the function. This does not include time spent waiting on API calls or HTTP\\nrequests.\", \"Delimiter\", \":\\r\\n\"),CategoryName=\"PlayFab | Client | Server-Side Cloud Script Models\",bShowPin=False,bCanToggleVisibility=True)" + "\n" +
+                   "   " + "ShowPinForProperties(11)=(PropertyName=\"Revision\",PropertyFriendlyName=\"Revision\",PropertyTooltip=LOCGEN_FORMAT_NAMED(INVTEXT(\"{0}{Delimiter}{1}\"), \"0\", \"Revision\", \"1\", \"The revision of the CloudScript that executed\", \"Delimiter\", \":\\r\\n\"),CategoryName=\"PlayFab | Client | Server-Side Cloud Script Models\",bShowPin=False,bCanToggleVisibility=True)" + "\n" +
+                   "   " + "ShowPinForProperties(12)=(PropertyName=\"Request\",PropertyFriendlyName=\"Request\",PropertyTooltip=\"Request\",CategoryName=\"PlayFab | Core\",bShowPin=False,bCanToggleVisibility=True)" + "\n" +
+                   "   " + "StructType=/Script/CoreUObject.ScriptStruct'\"/Script/PlayFab.ClientExecuteCloudScriptResult\"'" + "\n" +
+                   "   " + "NodePosX=" + NodePosX + "\n" +
+                   "   " + "NodePosY=" + NodePosY + "\n" +
+                   "   " + "AdvancedPinDisplay=Shown" + "\n" +
                    "   " + "NodeGuid=" + NodeGuid + "\n" +
                    "   " + myPins + "\n" +
                    "End Object";
@@ -756,10 +1150,10 @@ namespace CStoBP
                 this._PinCategory = pinCategory;
                 GraphPinText = GraphPinText + "PinType.PinCategory=" + Wrap(pinCategory) + ",";
             }
-            public void PinTypeEqualsPinCategory(string pinTypeEqualsPinCategory)
+            public virtual void PinTypeEqualsPinCategory(string pinTypeEqualsPinCategory)
             {
                 this._PinTypeEqualsPinCategory = pinTypeEqualsPinCategory;
-                GraphPinText = GraphPinText + "PinType=(PinCategory=" + Wrap(pinTypeEqualsPinCategory) + "),";
+                GraphPinText = GraphPinText + "PinType=(PinCategory=" + Wrap(pinTypeEqualsPinCategory) + ",";
             }
             public void DesiredPinDirection(EEdGraphPinDirection desiredPinDirection)
             {
@@ -767,13 +1161,13 @@ namespace CStoBP
                 GraphPinText = GraphPinText + "DesiredPinDirection=" + desiredPinDirection.ToString() + ")";
             }
 
-            public void PinSubCategory(string pinSubCategory)
+            public virtual void PinSubCategory(string pinSubCategory)
             {
                 this._PinSubCategory = pinSubCategory;
                 GraphPinText = GraphPinText + "PinType.PinSubCategory=" + Wrap(pinSubCategory) + ",";
             }
 
-            public void PinSubCategoryObject(string pinSubCategoryObject)
+            public virtual void PinSubCategoryObject(string pinSubCategoryObject)
             {
                 this._PinSubCategoryObject = pinSubCategoryObject;
                 GraphPinText = GraphPinText + "PinType.PinSubCategoryObject=" + pinSubCategoryObject + ",";
@@ -784,7 +1178,7 @@ namespace CStoBP
                 this._PinSubCategoryMemberReference = pinSubCategoryMemberReference;
                 GraphPinText = GraphPinText + "PinType.PinSubCategoryMemberReference=" + pinSubCategoryMemberReference + ",";
             }
-            public void MemberName(string memberName)
+            public virtual void MemberName(string memberName)
             {
                 this._MemberName = memberName;
                 GraphPinText = GraphPinText + "MemberName=" + memberName + ",";
@@ -855,7 +1249,7 @@ namespace CStoBP
             public void DefaultObject(string defaultObject)
             {
                 this._DefaultObject = defaultObject;
-                GraphPinText = GraphPinText + Wrap("DefaultObject=" + defaultObject) + ",";
+                GraphPinText = GraphPinText + "DefaultObject=" + defaultObject + ",";
             }
             public void PersistentGuid(string persistentGuid)
             {
@@ -909,18 +1303,48 @@ namespace CStoBP
 
             public void LinkToPin(GraphPin connectToPin)
             {
-                LinkedTo("(" + connectToPin._ParentNodeRef.Name + " " + connectToPin._PinId + ")");
-                _LinkedTo = "(" + connectToPin._ParentNodeRef.Name + " " + connectToPin._PinId + ")";
 
-                connectToPin.UnCloseGraphPinText();
-                connectToPin.LinkedTo("(" + _ParentNodeRef.Name + " " + _PinId + ")");
-                connectToPin.CloseGraphPinText();
-                connectToPin._LinkedTo = "(" + _ParentNodeRef.Name + " " + _PinId + ")";
+                LinkedTo("(" + connectToPin._ParentNodeRef.Name + " " + connectToPin._PinId + ",)");
+                _LinkedTo = "(" + connectToPin._ParentNodeRef.Name + " " + connectToPin._PinId + ",)";
+
+                //connectToPin.UnCloseGraphPinText();
+                //connectToPin.LinkedTo("(" + _ParentNodeRef.Name + " " + _PinId + ")");
+                //connectToPin._LinkedTo = "(" + _ParentNodeRef.Name + " " + _PinId + ")";
+                //connectToPin.CloseGraphPinText();
+
+            }
+            public void LinkToPins(List<GraphPin> connectToPins)
+            {
+                UnCloseGraphPinText();
+                string allPinsStringified = "(";
+                for(int i = 0; i < connectToPins.ToArray().Length; i++)
+                {
+                    allPinsStringified += connectToPins[i]._ParentNodeRef.Name + " " + connectToPins[i]._PinId + ",";
+                    connectToPins[i].UnCloseGraphPinText();
+                    connectToPins[i].LinkedTo("(" + _ParentNodeRef.Name + " " + _PinId + ")");
+                    connectToPins[i]._LinkedTo = "(" + _ParentNodeRef.Name + " " + _PinId + ")";
+                    connectToPins[i].CloseGraphPinText();
+                }
+                allPinsStringified += ")";
+                LinkedTo(allPinsStringified);
+                _LinkedTo = allPinsStringified;
             }
 
 
         }
-        class GraphPinExec:GraphPin
+        class GraphUserDefinedPin : GraphPin
+        {
+            public GraphUserDefinedPin(GraphNode parentNodeRef) : base(parentNodeRef)
+            {
+                _ParentNodeRef = parentNodeRef;
+            }
+            public override void PinSubCategoryObject(string pinSubCategoryObject)
+            {
+                this._PinSubCategoryObject = pinSubCategoryObject;
+                GraphPinText = GraphPinText + "PinSubCategoryObject=" + pinSubCategoryObject + ",";
+            }
+        }
+        class GraphPinExec : GraphPin
         {
             public GraphPinExec(GraphNode parentNodeRef) : base(parentNodeRef)
             {
@@ -928,6 +1352,7 @@ namespace CStoBP
                 OpenGraphPinText();
                 PinId(GenerateRandomHexNumber());
                 PinName("execute");
+                PinToolTip("\\nExec");
                 PinCategory("exec");
                 PinSubCategory("");
                 PinSubCategoryObject("None");
@@ -965,7 +1390,6 @@ namespace CStoBP
                 bIsWeakPointer(false);
                 bIsUObjectWrapper(false);
                 bSerializeAsSinglePrecisionFloat(false);
-                LinkToPin(linkToPin);
                 PersistentGuid("00000000000000000000000000000000");
                 bHidden(false);
                 bNotConnectable(false);
@@ -973,11 +1397,44 @@ namespace CStoBP
                 bDefaultValueIsIgnored(false);
                 bAdvancedView(false);
                 bOrphanedPin(false);
+                LinkToPin(linkToPin);
+                CloseGraphPinText();
+            }
+            public GraphPinExec(GraphNode parentNodeRef, GraphPin linkToPin, string pinName) : base(parentNodeRef)
+            {
+                _ParentNodeRef = parentNodeRef;
+                OpenGraphPinText();
+                PinId(GenerateRandomHexNumber());
+                PinName(pinName);
+                PinCategory("exec");
+                PinSubCategory("");
+                PinSubCategoryObject("None");
+                PinSubCategoryMemberReference("()");
+                PinValueType("()");
+                ContainerType(EPinContainerType.None);
+                bIsReference(false);
+                bIsConst(false);
+                bIsWeakPointer(false);
+                bIsUObjectWrapper(false);
+                bSerializeAsSinglePrecisionFloat(false);
+                PersistentGuid("00000000000000000000000000000000");
+                bHidden(false);
+                bNotConnectable(false);
+                bDefaultValueIsReadOnly(false);
+                bDefaultValueIsIgnored(false);
+                bAdvancedView(false);
+                bOrphanedPin(false);
+                LinkToPin(linkToPin);
                 CloseGraphPinText();
             }
         }
         class GraphPinDelegateHandle : GraphPin
         {
+            public override void MemberName(string memberName)
+            {
+                this._MemberName = memberName;
+                GraphPinText = GraphPinText + "MemberName=" + Wrap(memberName) + ",";
+            }
             public GraphPinDelegateHandle(GraphNode parentNodeRef) : base(parentNodeRef)
             {
                 _ParentNodeRef = parentNodeRef;
@@ -1007,6 +1464,37 @@ namespace CStoBP
                 bOrphanedPin(false);
                 CloseGraphPinText();
             }
+            public GraphPinDelegateHandle(GraphNode parentNodeRef, GraphPin pinToLink) : base(parentNodeRef)
+            {
+                _ParentNodeRef = parentNodeRef;
+                OpenGraphPinText();
+                PinId(GenerateRandomHexNumber());
+                PinName("OutputDelegate");
+                Direction(EEdGraphPinDirection.EGPD_Output);
+                PinCategory("delegate");
+                PinSubCategory("");
+                PinSubCategoryObject("None");
+                PinSubCategoryMemberReference("(MemberParent=/Script/Engine.BlueprintGeneratedClass'\"/Game/_D/BPs/GameInstanceBP.GameInstanceBP_C\"'");
+                MemberName(parentNodeRef.CustomFunctionName);
+                MemberGuid(GenerateRandomHexNumber());
+                CloseGraphPinText();//u need dis
+                PinValueType("()");
+                ContainerType(EPinContainerType.None);
+                bIsReference(false);
+                bIsConst(false);
+                bIsWeakPointer(false);
+                bIsUObjectWrapper(false);
+                bSerializeAsSinglePrecisionFloat(false);
+                PersistentGuid("00000000000000000000000000000000");
+                bHidden(false);
+                bNotConnectable(false);
+                bDefaultValueIsReadOnly(false);
+                bDefaultValueIsIgnored(false);
+                bAdvancedView(false);
+                bOrphanedPin(false);
+                LinkToPin(pinToLink);
+                CloseGraphPinText();
+            }
         }
         class GraphPinThen : GraphPin
         {
@@ -1021,6 +1509,497 @@ namespace CStoBP
                 PinSubCategory("");
                 PinSubCategoryObject("None");
                 PinSubCategoryMemberReference("()");
+                PinValueType("()");
+                ContainerType(EPinContainerType.None);
+                bIsReference(false);
+                bIsConst(false);
+                bIsWeakPointer(false);
+                bIsUObjectWrapper(false);
+                bSerializeAsSinglePrecisionFloat(false);
+                PersistentGuid("00000000000000000000000000000000");
+                bHidden(false);
+                bNotConnectable(false);
+                bDefaultValueIsReadOnly(false);
+                bDefaultValueIsIgnored(false);
+                bAdvancedView(false);
+                bOrphanedPin(false);
+                CloseGraphPinText();
+            }
+            public GraphPinThen(GraphNode parentNodeRef, string pinName) : base(parentNodeRef)
+            {
+                _ParentNodeRef = parentNodeRef;
+                OpenGraphPinText();
+                PinId(GenerateRandomHexNumber());
+                PinName(pinName);
+                Direction(EEdGraphPinDirection.EGPD_Output);
+                PinCategory("exec");
+                PinSubCategory("");
+                PinSubCategoryObject("None");
+                PinSubCategoryMemberReference("()");
+                PinValueType("()");
+                ContainerType(EPinContainerType.None);
+                bIsReference(false);
+                bIsConst(false);
+                bIsWeakPointer(false);
+                bIsUObjectWrapper(false);
+                bSerializeAsSinglePrecisionFloat(false);
+                PersistentGuid("00000000000000000000000000000000");
+                bHidden(false);
+                bNotConnectable(false);
+                bDefaultValueIsReadOnly(false);
+                bDefaultValueIsIgnored(false);
+                bAdvancedView(false);
+                bOrphanedPin(false);
+                CloseGraphPinText();
+            }
+        }
+        class GraphPinOnPlayFabResponse : GraphPin
+        {
+            public GraphPinOnPlayFabResponse(GraphNode parentNodeRef) : base(parentNodeRef)
+            {
+                _ParentNodeRef = parentNodeRef;
+                OpenGraphPinText();
+                PinId(GenerateRandomHexNumber());
+                PinName("OnPlayFabResponse");
+                PinFriendlyName("On Play Fab Response");
+                PinToolTip("On Play Fab Response");
+                Direction(EEdGraphPinDirection.EGPD_Output);
+                PinCategory("exec");
+                PinSubCategory("");
+                PinSubCategoryObject("None");
+                PinSubCategoryMemberReference("()");
+                PinValueType("()");
+                ContainerType(EPinContainerType.None);
+                bIsReference(false);
+                bIsConst(false);
+                bIsWeakPointer(false);
+                bIsUObjectWrapper(false);
+                bSerializeAsSinglePrecisionFloat(false);
+                PersistentGuid("00000000000000000000000000000000");
+                bHidden(false);
+                bNotConnectable(false);
+                bDefaultValueIsReadOnly(false);
+                bDefaultValueIsIgnored(false);
+                bAdvancedView(false);
+                bOrphanedPin(false);
+                CloseGraphPinText();
+            }
+        }
+        class GraphPinResponseStruct : GraphPin
+        {
+            public GraphPinResponseStruct(GraphNode parentNodeRef) : base(parentNodeRef)
+            {
+                _ParentNodeRef = parentNodeRef;
+                OpenGraphPinText();
+                PinId(GenerateRandomHexNumber());
+                PinName("response");
+                PinToolTip("Response\\nPlay Fab Base Model Structure");
+                Direction(EEdGraphPinDirection.EGPD_Output);
+                PinCategory("struct");
+                PinSubCategory("");
+                PinSubCategoryObject("/Script/CoreUObject.ScriptStruct'\"/Script/PlayFab.PlayFabBaseModel\"'");
+                PinSubCategoryMemberReference("()");
+                PinValueType("()");
+                ContainerType(EPinContainerType.None);
+                bIsReference(false);
+                bIsConst(false);
+                bIsWeakPointer(false);
+                bIsUObjectWrapper(false);
+                bSerializeAsSinglePrecisionFloat(false);
+                PersistentGuid("00000000000000000000000000000000");
+                bHidden(false);
+                bNotConnectable(false);
+                bDefaultValueIsReadOnly(false);
+                bDefaultValueIsIgnored(false);
+                bAdvancedView(false);
+                bOrphanedPin(false);
+                CloseGraphPinText();
+            }
+        }
+        class GraphPinCustomDataOut : GraphPin
+        {
+            public GraphPinCustomDataOut(GraphNode parentNodeRef) : base(parentNodeRef)
+            {
+                _ParentNodeRef = parentNodeRef;
+                OpenGraphPinText();
+                PinId(GenerateRandomHexNumber());
+                PinName("customData");
+                PinToolTip("Custom Data\\nObject Reference");
+                Direction(EEdGraphPinDirection.EGPD_Output);
+                PinCategory("object");
+                PinSubCategory("");
+                PinSubCategoryObject("/Script/CoreUObject.Class'\"/Script/CoreUObject.Object\"'");
+                PinSubCategoryMemberReference("()");
+                PinValueType("()");
+                ContainerType(EPinContainerType.None);
+                bIsReference(false);
+                bIsConst(false);
+                bIsWeakPointer(false);
+                bIsUObjectWrapper(false);
+                bSerializeAsSinglePrecisionFloat(false);
+                PersistentGuid("00000000000000000000000000000000");
+                bHidden(false);
+                bNotConnectable(false);
+                bDefaultValueIsReadOnly(false);
+                bDefaultValueIsIgnored(false);
+                bAdvancedView(false);
+                bOrphanedPin(false);
+                CloseGraphPinText();
+            }
+        }
+        class GraphPinCustomDataIn : GraphPin
+        {
+            public GraphPinCustomDataIn(GraphNode parentNodeRef) : base(parentNodeRef)
+            {
+                _ParentNodeRef = parentNodeRef;
+                OpenGraphPinText();
+                PinId(GenerateRandomHexNumber());
+                PinName("customData");
+                PinToolTip("Custom Data\\nObject Reference");
+                PinCategory("object");
+                PinSubCategory("");
+                PinSubCategoryObject("/Script/CoreUObject.Class'\"/Script/CoreUObject.Object\"'");
+                PinSubCategoryMemberReference("()");
+                PinValueType("()");
+                ContainerType(EPinContainerType.None);
+                bIsReference(false);
+                bIsConst(false);
+                bIsWeakPointer(false);
+                bIsUObjectWrapper(false);
+                bSerializeAsSinglePrecisionFloat(false);
+                PersistentGuid("00000000000000000000000000000000");
+                bHidden(false);
+                bNotConnectable(false);
+                bDefaultValueIsReadOnly(false);
+                bDefaultValueIsIgnored(false);
+                bAdvancedView(false);
+                bOrphanedPin(false);
+                CloseGraphPinText();
+            }
+        }
+        class GraphPinCustomTagsIn : GraphPin
+        {
+            public GraphPinCustomTagsIn(GraphNode parentNodeRef) : base(parentNodeRef)
+            {
+                _ParentNodeRef = parentNodeRef;
+                OpenGraphPinText();
+                PinId(GenerateRandomHexNumber());
+                PinName("CustomTags");
+                PinFriendlyName("Custom Tags");
+                PinToolTip("Custom Tags\\nPlay Fab Json Object Object Reference\\n\\nCustom Tags:\\r\\nThe optional custom tags associated with the request (e.g. build number,external trace identifiers,etc.).");
+                PinCategory("object");
+                PinSubCategory("");
+                PinSubCategoryObject("/Script/CoreUObject.Class'\"/Script/PlayFab.PlayFabJsonObject\"'");
+                PinSubCategoryMemberReference("()");
+                PinValueType("()");
+                ContainerType(EPinContainerType.None);
+                bIsReference(false);
+                bIsConst(false);
+                bIsWeakPointer(false);
+                bIsUObjectWrapper(false);
+                bSerializeAsSinglePrecisionFloat(false);
+                PersistentGuid("00000000000000000000000000000000");
+                bHidden(false);
+                bNotConnectable(false);
+                bDefaultValueIsReadOnly(false);
+                bDefaultValueIsIgnored(false);
+                bAdvancedView(false);
+                bOrphanedPin(false);
+                CloseGraphPinText();
+            }
+        }
+        class GraphPinWasSuccessfulOut : GraphPin
+        {
+            public GraphPinWasSuccessfulOut(GraphNode parentNodeRef) : base(parentNodeRef)
+            {
+                _ParentNodeRef = parentNodeRef;
+                OpenGraphPinText();
+                PinId(GenerateRandomHexNumber());
+                PinName("successful");
+                PinToolTip("Successful\\nBoolean");
+                Direction(EEdGraphPinDirection.EGPD_Output);
+                PinCategory("bool");
+                PinSubCategory("");
+                PinSubCategoryObject("None");
+                PinSubCategoryMemberReference("()");
+                PinValueType("()");
+                ContainerType(EPinContainerType.None);
+                bIsReference(false);
+                bIsConst(false);
+                bIsWeakPointer(false);
+                bIsUObjectWrapper(false);
+                bSerializeAsSinglePrecisionFloat(false);
+                PersistentGuid("00000000000000000000000000000000");
+                bHidden(false);
+                bNotConnectable(false);
+                bDefaultValueIsReadOnly(false);
+                bDefaultValueIsIgnored(false);
+                bAdvancedView(false);
+                bOrphanedPin(false);
+                CloseGraphPinText();
+            }
+        }
+        class GraphPinRequestStructIn : GraphPin
+        {
+            public GraphPinRequestStructIn(GraphNode parentNodeRef, GraphPin inputRequestStruct) : base(parentNodeRef)
+            {
+                _ParentNodeRef = parentNodeRef;
+                OpenGraphPinText();
+                PinId(GenerateRandomHexNumber());
+                PinName("request");
+                PinToolTip("Request\\nClient Execute Cloud Script Request Structure");
+                PinCategory("struct");
+                PinSubCategory("");
+                PinSubCategoryObject("/Script/CoreUObject.ScriptStruct'\"/Script/PlayFab.ClientExecuteCloudScriptRequest\"'");
+                PinSubCategoryMemberReference("()");
+                PinValueType("()");
+                ContainerType(EPinContainerType.None);
+                bIsReference(false);
+                bIsConst(false);
+                bIsWeakPointer(false);
+                bIsUObjectWrapper(false);
+                bSerializeAsSinglePrecisionFloat(false);
+                LinkToPin(inputRequestStruct);
+                PersistentGuid("00000000000000000000000000000000");
+                bHidden(false);
+                bNotConnectable(false);
+                bDefaultValueIsReadOnly(false);
+                bDefaultValueIsIgnored(false);
+                bAdvancedView(false);
+                bOrphanedPin(false);
+                CloseGraphPinText();
+            }
+        }
+        class GraphPinRequestStructOut : GraphPin
+        {
+            public GraphPinRequestStructOut(GraphNode parentNodeRef) : base(parentNodeRef)
+            {
+                _ParentNodeRef = parentNodeRef;
+                OpenGraphPinText();
+                PinId(GenerateRandomHexNumber());
+                PinName("ClientExecuteCloudScriptRequest");
+                Direction(EEdGraphPinDirection.EGPD_Output);
+                PinCategory("struct");
+                PinSubCategory("");
+                PinSubCategoryObject("/Script/CoreUObject.ScriptStruct'\"/Script/PlayFab.ClientExecuteCloudScriptRequest\"'");
+                PinSubCategoryMemberReference("()");
+                PinValueType("()");
+                ContainerType(EPinContainerType.None);
+                bIsReference(false);
+                bIsConst(false);
+                bIsWeakPointer(false);
+                bIsUObjectWrapper(false);
+                bSerializeAsSinglePrecisionFloat(false);
+                PersistentGuid("00000000000000000000000000000000");
+                bHidden(false);
+                bNotConnectable(false);
+                bDefaultValueIsReadOnly(false);
+                bDefaultValueIsIgnored(false);
+                bAdvancedView(false);
+                bOrphanedPin(false);
+                CloseGraphPinText();
+            }
+        }
+        class GraphPinResultStructIn : GraphPin
+        {
+            public GraphPinResultStructIn(GraphNode parentNodeRef, GraphPin inputResultStruct, string pinName) : base(parentNodeRef)
+            {
+                _ParentNodeRef = parentNodeRef;
+                OpenGraphPinText();
+                PinId(GenerateRandomHexNumber());
+                PinName(pinName);
+                PinCategory("struct");
+                PinSubCategory("");
+                PinSubCategoryObject("/Script/CoreUObject.ScriptStruct'\"/Script/PlayFab.ClientExecuteCloudScriptResult\"'");
+                PinSubCategoryMemberReference("()");
+                PinValueType("()");
+                ContainerType(EPinContainerType.None);
+                bIsReference(true);
+                bIsConst(true);
+                bIsWeakPointer(false);
+                bIsUObjectWrapper(false);
+                bSerializeAsSinglePrecisionFloat(false);
+                PersistentGuid("00000000000000000000000000000000");
+                bHidden(false);
+                bNotConnectable(false);
+                bDefaultValueIsReadOnly(false);
+                bDefaultValueIsIgnored(false);
+                bAdvancedView(false);
+                bOrphanedPin(false);
+                LinkToPin(inputResultStruct);
+                CloseGraphPinText();
+            }
+        }
+        class GraphPinResultStructOut : GraphPin
+        {
+            public GraphPinResultStructOut(GraphNode parentNodeRef) : base(parentNodeRef)
+            {
+                _ParentNodeRef = parentNodeRef;
+                OpenGraphPinText();
+                PinId(GenerateRandomHexNumber());
+                PinName("result");
+                Direction(EEdGraphPinDirection.EGPD_Output);
+                PinCategory("struct");
+                PinSubCategory("");
+                PinSubCategoryObject("/Script/CoreUObject.ScriptStruct'\"/Script/PlayFab.ClientExecuteCloudScriptResult\"'");
+                PinSubCategoryMemberReference("()");
+                PinValueType("()");
+                ContainerType(EPinContainerType.None);
+                bIsReference(false);
+                bIsConst(false);
+                bIsWeakPointer(false);
+                bIsUObjectWrapper(false);
+                bSerializeAsSinglePrecisionFloat(false);
+                PersistentGuid("00000000000000000000000000000000");
+                bHidden(false);
+                bNotConnectable(false);
+                bDefaultValueIsReadOnly(false);
+                bDefaultValueIsIgnored(false);
+                bAdvancedView(false);
+                bOrphanedPin(false);
+                CloseGraphPinText();
+            }
+        }
+        class GraphPinFailedStructIn : GraphPin
+        {
+            public GraphPinFailedStructIn(GraphNode parentNodeRef, GraphPin linkToPin) : base(parentNodeRef)
+            {
+                _ParentNodeRef = parentNodeRef;
+                OpenGraphPinText();
+                PinId(GenerateRandomHexNumber());
+                PinName("Error");
+                PinToolTip("Error\\nPlayFab Error Structure");
+                PinCategory("struct");
+                PinSubCategory("");
+                PinSubCategoryObject("/Script/CoreUObject.ScriptStruct'\"/Script/PlayFab.PlayFabError\"'");
+                PinSubCategoryMemberReference("()");
+                PinValueType("()");
+                ContainerType(EPinContainerType.None);
+                bIsReference(false);
+                bIsConst(false);
+                bIsWeakPointer(false);
+                bIsUObjectWrapper(false);
+                bSerializeAsSinglePrecisionFloat(false);
+                PersistentGuid("00000000000000000000000000000000");
+                bHidden(false);
+                bNotConnectable(false);
+                bDefaultValueIsReadOnly(false);
+                bDefaultValueIsIgnored(false);
+                bAdvancedView(false);
+                bOrphanedPin(false);
+                LinkToPin(linkToPin);
+                CloseGraphPinText();
+            }
+        }
+        class GraphPinFailedStructOut : GraphPin
+        {
+            public GraphPinFailedStructOut(GraphNode parentNodeRef) : base(parentNodeRef)
+            {
+                _ParentNodeRef = parentNodeRef;
+                OpenGraphPinText();
+                PinId(GenerateRandomHexNumber());
+                PinName("error");
+                Direction(EEdGraphPinDirection.EGPD_Output);
+                PinCategory("struct");
+                PinSubCategory("");
+                PinSubCategoryObject("/Script/CoreUObject.ScriptStruct'\"/Script/PlayFab.PlayFabError\"'");
+                PinSubCategoryMemberReference("()");
+                PinValueType("()");
+                ContainerType(EPinContainerType.None);
+                bIsReference(false);
+                bIsConst(false);
+                bIsWeakPointer(false);
+                bIsUObjectWrapper(false);
+                bSerializeAsSinglePrecisionFloat(false);
+                PersistentGuid("00000000000000000000000000000000");
+                bHidden(false);
+                bNotConnectable(false);
+                bDefaultValueIsReadOnly(false);
+                bDefaultValueIsIgnored(false);
+                bAdvancedView(false);
+                bOrphanedPin(false);
+                CloseGraphPinText();
+            }
+        }
+        class GraphPinUserDefinedSuccessStructOut : GraphUserDefinedPin
+        {
+            public GraphPinUserDefinedSuccessStructOut(GraphNode parentNodeRef) : base(parentNodeRef)
+            {
+                _ParentNodeRef = parentNodeRef;
+                OpenUserDefinedGraphPinText();
+                PinName("result");
+                PinTypeEqualsPinCategory("struct");
+                PinSubCategoryObject("/Script/CoreUObject.ScriptStruct'\"/Script/PlayFab.ClientExecuteCloudScriptResult\"')");
+                DesiredPinDirection(EEdGraphPinDirection.EGPD_Output);
+            }
+        }
+        class GraphPinUserDefinedFailedStructOut : GraphUserDefinedPin
+        {
+            public GraphPinUserDefinedFailedStructOut(GraphNode parentNodeRef) : base(parentNodeRef)
+            {
+                _ParentNodeRef = parentNodeRef;
+                OpenUserDefinedGraphPinText();
+                PinName("error");
+                PinTypeEqualsPinCategory("struct");
+                PinSubCategoryObject("/Script/CoreUObject.ScriptStruct'\"/Script/PlayFab.PlayFabError\"')");
+                DesiredPinDirection(EEdGraphPinDirection.EGPD_Output);
+            }
+        }
+        class GraphPinUserDefinedCustomDataOut : GraphUserDefinedPin
+        {
+            public GraphPinUserDefinedCustomDataOut(GraphNode parentNodeRef) : base(parentNodeRef)
+            {
+                _ParentNodeRef = parentNodeRef;
+                OpenUserDefinedGraphPinText();
+                PinName("customData");
+                PinTypeEqualsPinCategory("object");
+                PinSubCategoryObject("/Script/CoreUObject.Class'\"/Script/CoreUObject.Object\"')");
+                DesiredPinDirection(EEdGraphPinDirection.EGPD_Output);
+            }
+        }
+        class GraphPinDelegateOnSuccess : GraphPin
+        {
+            public GraphPinDelegateOnSuccess(GraphNode parentNodeRef) : base(parentNodeRef)
+            {
+                _ParentNodeRef = parentNodeRef;
+                OpenGraphPinText();
+                PinId(GenerateRandomHexNumber());
+                PinName("onSuccess");
+                PinToolTip("On Success\\nDelegate");
+                PinCategory("delegate");
+                PinSubCategory("");
+                PinSubCategoryObject("None");
+                PinSubCategoryMemberReference("(MemberParent=/Script/CoreUObject.Class'\"/Script/PlayFab.PlayFabClientAPI\"',MemberName=\"DelegateOnSuccessExecuteCloudScript__DelegateSignature\")");
+                PinValueType("()");
+                ContainerType(EPinContainerType.None);
+                bIsReference(false);
+                bIsConst(false);
+                bIsWeakPointer(false);
+                bIsUObjectWrapper(false);
+                bSerializeAsSinglePrecisionFloat(false);
+                PersistentGuid("00000000000000000000000000000000");
+                bHidden(false);
+                bNotConnectable(false);
+                bDefaultValueIsReadOnly(false);
+                bDefaultValueIsIgnored(false);
+                bAdvancedView(false);
+                bOrphanedPin(false);
+                CloseGraphPinText();
+            }
+        }
+        class GraphPinDelegateOnFailure : GraphPin
+        {
+            public GraphPinDelegateOnFailure(GraphNode parentNodeRef) : base(parentNodeRef)
+            {
+                _ParentNodeRef = parentNodeRef;
+                OpenGraphPinText();
+                PinId(GenerateRandomHexNumber());
+                PinName("onFailure");
+                PinToolTip("On Failure\\nDelegate");
+                PinCategory("delegate");
+                PinSubCategory("");
+                PinSubCategoryObject("None");
+                PinSubCategoryMemberReference("(MemberParent=/Script/CoreUObject.Class'\"/Script/PlayFab.PlayFabClientAPI\"',MemberName=\"DelegateOnFailurePlayFabError__DelegateSignature\")");
                 PinValueType("()");
                 ContainerType(EPinContainerType.None);
                 bIsReference(false);
@@ -1068,16 +2047,112 @@ namespace CStoBP
                 bOrphanedPin(false);
                 CloseGraphPinText();
             }
-        }
-        class GraphPinJsonIn : GraphPin
-        {
-            public GraphPinJsonIn(GraphNode parentNodeRef, GraphPin inputJson, string pinName, string pinFriendlyName, string pinToolTip) : base(parentNodeRef)
+            public GraphPinJsonOut(GraphNode parentNodeRef, string pinName, string pinFriendlyName, string pinToolTip) : base(parentNodeRef)
             {
                 _ParentNodeRef = parentNodeRef;
                 OpenGraphPinText();
                 PinId(GenerateRandomHexNumber());
                 PinName(pinName);
-                if(pinFriendlyName.Length > 0)
+                if(pinFriendlyName != "")
+                {
+                    PinFriendlyName(Wrap(pinFriendlyName));
+                }
+                PinToolTip(pinToolTip);
+                Direction(EEdGraphPinDirection.EGPD_Output);
+                PinCategory("object");
+                PinSubCategory("");
+                PinSubCategoryObject("/Script/CoreUObject.Class'\"/Script/PlayFab.PlayFabJsonObject\"'");
+                PinSubCategoryMemberReference("()");
+                PinValueType("()");
+                ContainerType(EPinContainerType.None);
+                bIsReference(false);
+                bIsConst(false);
+                bIsWeakPointer(false);
+                bIsUObjectWrapper(false);
+                bSerializeAsSinglePrecisionFloat(false);
+                PersistentGuid("00000000000000000000000000000000");
+                bHidden(false);
+                bNotConnectable(false);
+                bDefaultValueIsReadOnly(false);
+                bDefaultValueIsIgnored(false);
+                bAdvancedView(false);
+                bOrphanedPin(false);
+                CloseGraphPinText();
+            }
+            public GraphPinJsonOut(GraphNode parentNodeRef, string pinName, string pinFriendlyName, string pinToolTip, bool advancedView) : base(parentNodeRef)
+            {
+                _ParentNodeRef = parentNodeRef;
+                OpenGraphPinText();
+                PinId(GenerateRandomHexNumber());
+                PinName(pinName);
+                if (pinFriendlyName != "")
+                {
+                    PinFriendlyName(pinFriendlyName);
+                }
+                PinToolTip(pinToolTip);
+                Direction(EEdGraphPinDirection.EGPD_Output);
+                PinCategory("object");
+                PinSubCategory("");
+                PinSubCategoryObject("/Script/CoreUObject.Class'\"/Script/PlayFab.PlayFabJsonObject\"'");
+                PinSubCategoryMemberReference("()");
+                PinValueType("()");
+                ContainerType(EPinContainerType.None);
+                bIsReference(false);
+                bIsConst(false);
+                bIsWeakPointer(false);
+                bIsUObjectWrapper(false);
+                bSerializeAsSinglePrecisionFloat(false);
+                PersistentGuid("00000000000000000000000000000000");
+                bHidden(false);
+                bNotConnectable(false);
+                bDefaultValueIsReadOnly(false);
+                bDefaultValueIsIgnored(false);
+                bAdvancedView(advancedView);
+                bOrphanedPin(false);
+                CloseGraphPinText();
+            }
+            public GraphPinJsonOut(GraphNode parentNodeRef, string pinName, string pinFriendlyName, string pinToolTip, EPinContainerType containerType, bool advancedView) : base(parentNodeRef)
+            {
+                _ParentNodeRef = parentNodeRef;
+                OpenGraphPinText();
+                PinId(GenerateRandomHexNumber());
+                PinName(pinName);
+                if (pinFriendlyName != "")
+                {
+                    PinFriendlyName(pinFriendlyName);
+                }
+                PinToolTip(pinToolTip);
+                Direction(EEdGraphPinDirection.EGPD_Output);
+                PinCategory("object");
+                PinSubCategory("");
+                PinSubCategoryObject("/Script/CoreUObject.Class'\"/Script/PlayFab.PlayFabJsonObject\"'");
+                PinSubCategoryMemberReference("()");
+                PinValueType("()");
+                ContainerType(containerType);
+                bIsReference(false);
+                bIsConst(false);
+                bIsWeakPointer(false);
+                bIsUObjectWrapper(false);
+                bSerializeAsSinglePrecisionFloat(false);
+                PersistentGuid("00000000000000000000000000000000");
+                bHidden(false);
+                bNotConnectable(false);
+                bDefaultValueIsReadOnly(false);
+                bDefaultValueIsIgnored(false);
+                bAdvancedView(advancedView);
+                bOrphanedPin(false);
+                CloseGraphPinText();
+            }
+        }
+        class GraphPinJsonIn : GraphPin
+        {
+            public GraphPinJsonIn(GraphNode parentNodeRef, GraphPin inputJson, string pinName, string pinFriendlyName, string pinToolTip, bool BoolAdvancedView) : base(parentNodeRef)
+            {
+                _ParentNodeRef = parentNodeRef;
+                OpenGraphPinText();
+                PinId(GenerateRandomHexNumber());
+                PinName(pinName);
+                if (pinFriendlyName.Length > 0)
                 {
                     PinFriendlyName(pinFriendlyName);
                 }
@@ -1102,7 +2177,72 @@ namespace CStoBP
                 bNotConnectable(false);
                 bDefaultValueIsReadOnly(false);
                 bDefaultValueIsIgnored(false);
-                bAdvancedView(false);
+                bAdvancedView(BoolAdvancedView);
+                bOrphanedPin(false);
+                CloseGraphPinText();
+            }
+            public GraphPinJsonIn(GraphNode parentNodeRef, string pinName, string pinFriendlyName, string pinToolTip, bool BoolAdvancedView) : base(parentNodeRef)
+            {
+                _ParentNodeRef = parentNodeRef;
+                OpenGraphPinText();
+                PinId(GenerateRandomHexNumber());
+                PinName(pinName);
+                if (pinFriendlyName.Length > 0)
+                {
+                    PinFriendlyName(pinFriendlyName);
+                }
+                if (pinToolTip.Length > 0)
+                {
+                    PinToolTip(pinToolTip);
+                }
+                PinCategory("object");
+                PinSubCategory("");
+                PinSubCategoryObject("/Script/CoreUObject.Class'\"/Script/PlayFab.PlayFabJsonObject\"'");
+                PinSubCategoryMemberReference("()");
+                PinValueType("()");
+                ContainerType(EPinContainerType.None);
+                bIsReference(false);
+                bIsConst(false);
+                bIsWeakPointer(false);
+                bIsUObjectWrapper(false);
+                bSerializeAsSinglePrecisionFloat(false);
+                PersistentGuid("00000000000000000000000000000000");
+                bHidden(false);
+                bNotConnectable(false);
+                bDefaultValueIsReadOnly(false);
+                bDefaultValueIsIgnored(false);
+                bAdvancedView(BoolAdvancedView);
+                bOrphanedPin(false);
+                CloseGraphPinText();
+            }
+        }
+        class GraphPinAuthContextIn : GraphPin
+        {
+            public GraphPinAuthContextIn(GraphNode parentNodeRef, bool BoolAdvancedView) : base(parentNodeRef)
+            {
+                _ParentNodeRef = parentNodeRef;
+                OpenGraphPinText();
+                PinId(GenerateRandomHexNumber());
+                PinName("AuthenticationContext");
+                PinFriendlyName("Authentication Context");
+                PinToolTip("Authentication Context\\nPlay Fab Authentication Context Object Reference\\n\\nAuthentication Context:\\r\\nAn optional authentication context (can used in multi-user scenarios)");
+                PinCategory("object");
+                PinSubCategory("");
+                PinSubCategoryObject("/Script/CoreUObject.Class'\"/Script/PlayFabCommon.PlayFabAuthenticationContext\"'");
+                PinSubCategoryMemberReference("()");
+                PinValueType("()");
+                ContainerType(EPinContainerType.None);
+                bIsReference(false);
+                bIsConst(false);
+                bIsWeakPointer(false);
+                bIsUObjectWrapper(false);
+                bSerializeAsSinglePrecisionFloat(false);
+                PersistentGuid("00000000000000000000000000000000");
+                bHidden(false);
+                bNotConnectable(false);
+                bDefaultValueIsReadOnly(false);
+                bDefaultValueIsIgnored(false);
+                bAdvancedView(BoolAdvancedView);
                 bOrphanedPin(false);
                 CloseGraphPinText();
             }
@@ -1136,10 +2276,45 @@ namespace CStoBP
                 bOrphanedPin(false);
                 CloseGraphPinText();
             }
+            public GraphPinStringOut(GraphNode parentNodeRef, string stringName, string stringFriendlyName, string stringToolTip, bool advancedView) : base(parentNodeRef)
+            {
+                _ParentNodeRef = parentNodeRef;
+                OpenGraphPinText();
+                PinId(GenerateRandomHexNumber());
+                PinName(stringName);
+                if(stringFriendlyName != "")
+                {
+                    PinFriendlyName(stringFriendlyName);
+                }
+                if (stringToolTip != "")
+                {
+                    PinFriendlyName(stringToolTip);
+                }
+                Direction(EEdGraphPinDirection.EGPD_Output);
+                PinCategory("string");
+                PinSubCategory("");
+                PinSubCategoryObject("None");
+                PinSubCategoryMemberReference("()");
+                PinValueType("()");
+                ContainerType(EPinContainerType.None);
+                bIsReference(false);
+                bIsConst(false);
+                bIsWeakPointer(false);
+                bIsUObjectWrapper(false);
+                bSerializeAsSinglePrecisionFloat(false);
+                PersistentGuid("00000000000000000000000000000000");
+                bHidden(false);
+                bNotConnectable(false);
+                bDefaultValueIsReadOnly(false);
+                bDefaultValueIsIgnored(false);
+                bAdvancedView(advancedView);
+                bOrphanedPin(false);
+                CloseGraphPinText();
+            }
         }
         class GraphPinStringIn : GraphPin
         {
-            public GraphPinStringIn(GraphNode parentNodeRef, string inputPinName, string pinToolTip, GraphPin parameterFromCustomEventNode) : base(parentNodeRef)
+            public GraphPinStringIn(GraphNode parentNodeRef, string pinToolTip, GraphPin parameterFromCustomEventNode) : base(parentNodeRef)
             {
                 _ParentNodeRef = parentNodeRef;
                 OpenGraphPinText();
@@ -1167,6 +2342,245 @@ namespace CStoBP
                 bDefaultValueIsReadOnly(false);
                 bDefaultValueIsIgnored(false);
                 bAdvancedView(false);
+                bOrphanedPin(false);
+                CloseGraphPinText();
+            }
+            public GraphPinStringIn(GraphNode parentNodeRef, string functionName) : base(parentNodeRef)
+            {
+                _ParentNodeRef = parentNodeRef;
+                OpenGraphPinText();
+                PinId(GenerateRandomHexNumber());
+                PinName("FunctionName");
+                PinFriendlyName(Wrap("Function Name"));
+                PinToolTip("Function Name\\nString\\n\\nFunction Name:\\r\\nThe name of the CloudScript function to execute");
+                PinCategory("string");
+                PinSubCategory("");
+                PinSubCategoryObject("None");
+                PinSubCategoryMemberReference("()");
+                PinValueType("()");
+                ContainerType(EPinContainerType.None);
+                bIsReference(false);
+                bIsConst(false);
+                bIsWeakPointer(false);
+                bIsUObjectWrapper(false);
+                bSerializeAsSinglePrecisionFloat(false);
+                DefaultValue(functionName);
+                PersistentGuid("00000000000000000000000000000000");
+                bHidden(false);
+                bNotConnectable(false);
+                bDefaultValueIsReadOnly(false);
+                bDefaultValueIsIgnored(false);
+                bAdvancedView(false);
+                bOrphanedPin(false);
+                CloseGraphPinText();
+            }
+        }
+        class GraphPinBoolIn : GraphPin
+        {
+            public GraphPinBoolIn(GraphNode parentNodeRef, string pinName, string pinFriendlyName, string pinToolTip) : base(parentNodeRef)
+            {
+                _ParentNodeRef = parentNodeRef;
+                OpenGraphPinText();
+                PinId(GenerateRandomHexNumber());
+                PinName(pinName);
+                PinFriendlyName(pinFriendlyName);
+                if (pinToolTip.Length > 0)
+                {
+                    PinToolTip(pinToolTip);
+                }
+                PinCategory("bool");
+                PinSubCategory("");
+                PinSubCategoryObject("None");
+                PinSubCategoryMemberReference("()");
+                PinValueType("()");
+                ContainerType(EPinContainerType.None);
+                bIsReference(false);
+                bIsConst(false);
+                bIsWeakPointer(false);
+                bIsUObjectWrapper(false);
+                bSerializeAsSinglePrecisionFloat(false);
+                DefaultValue("true");
+                AutogeneratedDefaultValue("False");
+                PersistentGuid("00000000000000000000000000000000");
+                bHidden(false);
+                bNotConnectable(false);
+                bDefaultValueIsReadOnly(false);
+                bDefaultValueIsIgnored(false);
+                bAdvancedView(true);
+                bOrphanedPin(false);
+                CloseGraphPinText();
+            }
+        }
+        class GraphPinBoolOut : GraphPin
+        {
+            public GraphPinBoolOut(GraphNode parentNodeRef, string pinName, string pinFriendlyName, string pinToolTip, bool advancedView) : base(parentNodeRef)
+            {
+                _ParentNodeRef = parentNodeRef;
+                OpenGraphPinText();
+                PinId(GenerateRandomHexNumber());
+                PinName(pinName);
+                PinFriendlyName(pinFriendlyName);
+                if (pinToolTip.Length > 0)
+                {
+                    PinToolTip(pinToolTip);
+                }
+                Direction(EEdGraphPinDirection.EGPD_Output);
+                PinCategory("bool");
+                PinSubCategory("");
+                PinSubCategoryObject("None");
+                PinSubCategoryMemberReference("()");
+                PinValueType("()");
+                ContainerType(EPinContainerType.None);
+                bIsReference(false);
+                bIsConst(false);
+                bIsWeakPointer(false);
+                bIsUObjectWrapper(false);
+                bSerializeAsSinglePrecisionFloat(false);
+                PersistentGuid("00000000000000000000000000000000");
+                bHidden(false);
+                bNotConnectable(false);
+                bDefaultValueIsReadOnly(false);
+                bDefaultValueIsIgnored(false);
+                bAdvancedView(advancedView);
+                bOrphanedPin(false);
+                CloseGraphPinText();
+            }
+        }
+        class GraphPinByteIn : GraphPin
+        {
+            public GraphPinByteIn(GraphNode parentNodeRef, string pinName, string pinFriendlyName, string pinToolTip, string pinSubCategoryObject, string defaultValue, string autogeneratedDefaultValue) : base(parentNodeRef)
+            {
+                _ParentNodeRef = parentNodeRef;
+                OpenGraphPinText();
+                PinId(GenerateRandomHexNumber());
+                PinName(pinName);
+                PinFriendlyName(pinFriendlyName);
+                if (pinToolTip.Length > 0)
+                {
+                    PinToolTip(pinToolTip);
+                }
+                PinCategory("byte");
+                PinSubCategory("");
+                PinSubCategoryObject(pinSubCategoryObject);
+                PinSubCategoryMemberReference("()");
+                PinValueType("()");
+                ContainerType(EPinContainerType.None);
+                bIsReference(false);
+                bIsConst(false);
+                bIsWeakPointer(false);
+                bIsUObjectWrapper(false);
+                bSerializeAsSinglePrecisionFloat(false);
+                DefaultValue(defaultValue);
+                AutogeneratedDefaultValue(autogeneratedDefaultValue);
+                PersistentGuid("00000000000000000000000000000000");
+                bHidden(false);
+                bNotConnectable(false);
+                bDefaultValueIsReadOnly(false);
+                bDefaultValueIsIgnored(false);
+                bAdvancedView(true);
+                bOrphanedPin(false);
+                CloseGraphPinText();
+            }
+        }
+        class GraphPinIntIn : GraphPin
+        {
+            public GraphPinIntIn(GraphNode parentNodeRef, string pinName, string pinFriendlyName, string pinToolTip, string defaultValue, string autogeneratedDefaultValue) : base(parentNodeRef)
+            {
+                _ParentNodeRef = parentNodeRef;
+                OpenGraphPinText();
+                PinId(GenerateRandomHexNumber());
+                PinName(pinName);
+                PinFriendlyName(pinFriendlyName);
+                if (pinToolTip.Length > 0)
+                {
+                    PinToolTip(pinToolTip);
+                }
+                PinCategory("int");
+                PinSubCategory("");
+                PinSubCategoryObject("None");
+                PinSubCategoryMemberReference("()");
+                PinValueType("()");
+                ContainerType(EPinContainerType.None);
+                bIsReference(false);
+                bIsConst(false);
+                bIsWeakPointer(false);
+                bIsUObjectWrapper(false);
+                bSerializeAsSinglePrecisionFloat(false);
+                DefaultValue(defaultValue);
+                AutogeneratedDefaultValue(autogeneratedDefaultValue);
+                PersistentGuid("00000000000000000000000000000000");
+                bHidden(false);
+                bNotConnectable(false);
+                bDefaultValueIsReadOnly(false);
+                bDefaultValueIsIgnored(false);
+                bAdvancedView(true);
+                bOrphanedPin(false);
+                CloseGraphPinText();
+            }
+        }
+        class GraphPinIntOut : GraphPin
+        {
+            public GraphPinIntOut(GraphNode parentNodeRef, string pinName, string pinFriendlyName, string pinToolTip) : base(parentNodeRef)
+            {
+                _ParentNodeRef = parentNodeRef;
+                OpenGraphPinText();
+                PinId(GenerateRandomHexNumber());
+                PinName(pinName);
+                PinFriendlyName(pinFriendlyName);
+                if (pinToolTip.Length > 0)
+                {
+                    PinToolTip(pinToolTip);
+                }
+                Direction(EEdGraphPinDirection.EGPD_Output);
+                PinCategory("int");
+                PinSubCategory("");
+                PinSubCategoryObject("None");
+                PinSubCategoryMemberReference("()");
+                PinValueType("()");
+                ContainerType(EPinContainerType.None);
+                bIsReference(false);
+                bIsConst(false);
+                bIsWeakPointer(false);
+                bIsUObjectWrapper(false);
+                bSerializeAsSinglePrecisionFloat(false);
+                PersistentGuid("00000000000000000000000000000000");
+                bHidden(false);
+                bNotConnectable(false);
+                bDefaultValueIsReadOnly(false);
+                bDefaultValueIsIgnored(false);
+                bAdvancedView(false);
+                bOrphanedPin(false);
+                CloseGraphPinText();
+            }
+            public GraphPinIntOut(GraphNode parentNodeRef, string pinName, string pinFriendlyName, string pinToolTip, bool advancedView) : base(parentNodeRef)
+            {
+                _ParentNodeRef = parentNodeRef;
+                OpenGraphPinText();
+                PinId(GenerateRandomHexNumber());
+                PinName(pinName);
+                PinFriendlyName(pinFriendlyName);
+                if (pinToolTip.Length > 0)
+                {
+                    PinToolTip(pinToolTip);
+                }
+                Direction(EEdGraphPinDirection.EGPD_Output);
+                PinCategory("int");
+                PinSubCategory("");
+                PinSubCategoryObject("None");
+                PinSubCategoryMemberReference("()");
+                PinValueType("()");
+                ContainerType(EPinContainerType.None);
+                bIsReference(false);
+                bIsConst(false);
+                bIsWeakPointer(false);
+                bIsUObjectWrapper(false);
+                bSerializeAsSinglePrecisionFloat(false);
+                PersistentGuid("00000000000000000000000000000000");
+                bHidden(false);
+                bNotConnectable(false);
+                bDefaultValueIsReadOnly(false);
+                bDefaultValueIsIgnored(false);
+                bAdvancedView(advancedView);
                 bOrphanedPin(false);
                 CloseGraphPinText();
             }
@@ -1274,6 +2688,68 @@ namespace CStoBP
                 CloseGraphPinText();
             }
         }
+        class GraphPin__WorldContextObject : GraphPin
+        {
+            public GraphPin__WorldContextObject(GraphNode parentNodeRef) : base(parentNodeRef)
+            {
+                _ParentNodeRef = parentNodeRef;
+                OpenGraphPinText();
+                PinId(GenerateRandomHexNumber());
+                PinName("__WorldContextObject");
+                PinToolTip("World Context Object\\nObject Reference");
+                PinCategory("object");
+                PinSubCategory("");
+                PinSubCategoryObject("/Script/CoreUObject.Class'\"/Script/CoreUObject.Object\"'");
+                PinSubCategoryMemberReference("()");
+                PinValueType("()");
+                ContainerType(EPinContainerType.None);
+                bIsReference(false);
+                bIsConst(false);
+                bIsWeakPointer(false);
+                bIsUObjectWrapper(false);
+                bSerializeAsSinglePrecisionFloat(false);
+                PersistentGuid("00000000000000000000000000000000");
+                bHidden(true);
+                bNotConnectable(false);
+                bDefaultValueIsReadOnly(false);
+                bDefaultValueIsIgnored(false);
+                bAdvancedView(false);
+                bOrphanedPin(false);
+                CloseGraphPinText();
+            }
+        }
+        class GraphPinSelfFLibDarkionRef : GraphPin
+        {
+            public GraphPinSelfFLibDarkionRef(GraphNode parentNodeRef) : base(parentNodeRef)
+            {
+                _ParentNodeRef = parentNodeRef;
+                OpenGraphPinText();
+                PinId(GenerateRandomHexNumber());
+                PinName("self");
+                PinFriendlyName("NSLOCTEXT(\"K2Node\", \"Target\", \"Target\")");
+                PinToolTip("Target\\nFLib Darkion Object Reference");
+                PinCategory("object");
+                PinSubCategory("");
+                PinSubCategoryObject("/Script/Engine.BlueprintGeneratedClass'\"/Darkion_Function_Library/FLib_Darkion.FLib_Darkion_C\"'");
+                PinSubCategoryMemberReference("()");
+                PinValueType("()");
+                ContainerType(EPinContainerType.None);
+                bIsReference(false);
+                bIsConst(false);
+                bIsWeakPointer(false);
+                bIsUObjectWrapper(false);
+                bSerializeAsSinglePrecisionFloat(false);
+                DefaultObject("/Darkion_Function_Library/FLib_Darkion.Default__FLib_Darkion_C");
+                PersistentGuid("00000000000000000000000000000000");
+                bHidden(true);
+                bNotConnectable(false);
+                bDefaultValueIsReadOnly(false);
+                bDefaultValueIsIgnored(false);
+                bAdvancedView(false);
+                bOrphanedPin(false);
+                CloseGraphPinText();
+            }
+        }
         class GraphPinConstructedJsonObjectOut : GraphPin
         {
             public GraphPinConstructedJsonObjectOut(GraphNode parentNodeRef) : base(parentNodeRef)
@@ -1359,7 +2835,7 @@ namespace CStoBP
         string[] GetArgumentsFromCloudscriptFunction(string input)
         {
             List<string> argsWords = new List<string>();
-            string[] words = input.Split(' ', ',', '(', ')', ';', '\n');
+            string[] words = input.Split(' ', ',', '(', ')','[', ']', ';', '\r', '\n', '}', '{');
             for (int i = 0; i < words.Length; i++)
             {
                 if (words[i].StartsWith("args."))
@@ -1428,7 +2904,10 @@ namespace CStoBP
             string result = "\"" + str + "\"";
             return result;
         }
+
+
         #endregion
+
 
     }
 
